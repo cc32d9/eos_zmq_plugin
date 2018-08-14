@@ -24,12 +24,16 @@ namespace eosio {
 
   static appbase::abstract_plugin& _zmq_plugin = app().register_plugin<zmq_plugin>();
 
+  using account_resource_limit = chain::resource_limits::account_resource_limit;
+
   struct resource_balance {
     name                       account_name;
     int64_t                    ram_quota  = 0;
     int64_t                    ram_usage = 0;
     int64_t                    net_weight = 0;
     int64_t                    cpu_weight = 0;
+    account_resource_limit     net_limit;
+    account_resource_limit     cpu_limit;
   };
 
   struct currency_balance {
@@ -178,6 +182,9 @@ namespace eosio {
       const auto& rm = chain.get_resource_limits_manager();
 
       rm.get_account_limits( account_name, bal.ram_quota, bal.net_weight, bal.cpu_weight );
+      bool grelisted = chain.is_resource_greylisted(account_name);
+      bal.net_limit = rm.get_account_net_limit_ex( account_name, !grelisted);
+      bal.cpu_limit = rm.get_account_cpu_limit_ex( account_name, !grelisted);
       bal.ram_usage = rm.get_account_ram_usage( account_name );
       zao.resource_balances.emplace_back(bal);
     }
@@ -252,7 +259,7 @@ namespace eosio {
 }
 
 FC_REFLECT( eosio::resource_balance,
-            (account_name)(ram_quota)(ram_usage)(net_weight)(cpu_weight) )
+            (account_name)(ram_quota)(ram_usage)(net_weight)(cpu_weight)(net_limit)(cpu_limit) )
 
 FC_REFLECT( eosio::currency_balance,
             (account_name)(issuer)(balance))
