@@ -10,9 +10,6 @@ namespace eosio {
 
 using namespace appbase;
 
-/**
- *  This is a template plugin, intended to serve as a starting point for making new plugins
- */
 class zmq_plugin : public appbase::plugin<zmq_plugin> {
 public:
    zmq_plugin();

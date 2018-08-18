@@ -17,15 +17,36 @@ namespace {
   const char* SENDER_BIND_DEFAULT = "tcp://127.0.0.1:5556";
 }
 
-
-namespace eosio {
-  using namespace chain;
-  using boost::signals2::scoped_connection;
-
-  static appbase::abstract_plugin& _zmq_plugin = app().register_plugin<zmq_plugin>();
-
+namespace zmqplugin {
+  using namespace eosio;
+  using namespace eosio::chain;
   using account_resource_limit = chain::resource_limits::account_resource_limit;
 
+  // these two structures are not defined in contract_types.hpp, so we define them here
+  struct buyrambytes {
+    account_name payer;
+    account_name receiver;
+    uint32_t bytes;
+    static account_name get_account() {
+      return config::system_account_name;
+    }
+    static action_name get_name() {
+      return N(buyrambytes);
+    }
+  };
+
+  struct buyram {
+    account_name payer;
+    account_name receiver;
+    asset quant;
+    static account_name get_account() {
+      return config::system_account_name;
+    }
+    static action_name get_name() {
+      return N(buyram);
+    }
+  };
+ 
   struct resource_balance {
     name                       account_name;
     int64_t                    ram_quota  = 0;
@@ -50,7 +71,16 @@ namespace eosio {
     vector<resource_balance>     resource_balances;
     vector<currency_balance>     currency_balances;
   };
-  
+ }
+
+
+namespace eosio {
+  using namespace chain;
+  using namespace zmqplugin;
+  using boost::signals2::scoped_connection;
+
+  static appbase::abstract_plugin& _zmq_plugin = app().register_plugin<zmq_plugin>();
+
   class zmq_plugin_impl {
   public:
     zmq::context_t context;
@@ -151,9 +181,67 @@ namespace eosio {
         accounts.insert(at.receipt.receiver);
       }
 
-      if( at.act.account == N(eosio) && at.act.name == N(newaccount) ) {
-        const auto create = at.act.data_as<chain::newaccount>();
-        accounts.insert(create.name);
+      if( at.act.account == config::system_account_name ) {
+        switch((uint64_t) at.act.name) {
+        case N(newaccount):
+          {
+            const auto data = at.act.data_as<chain::newaccount>();
+            accounts.insert(data.name);
+          }
+          break;
+        case N(setcode):
+          {
+            const auto data = at.act.data_as<chain::setcode>();
+            accounts.insert(data.account);
+          }
+          break;
+        case N(setabi):
+          {
+            const auto data = at.act.data_as<chain::setabi>();
+            accounts.insert(data.account);
+          }
+          break;
+        case N(updateauth):
+          {
+            const auto data = at.act.data_as<chain::updateauth>();
+            accounts.insert(data.account);
+          }
+          break;
+        case N(deleteauth):
+          {
+            const auto data = at.act.data_as<chain::deleteauth>();
+            accounts.insert(data.account);
+          }
+          break;
+        case N(linkauth):
+          {
+            const auto data = at.act.data_as<chain::linkauth>();
+            accounts.insert(data.account);
+          }
+          break;
+        case N(unlinkauth):
+          {
+            const auto data = at.act.data_as<chain::unlinkauth>();
+            accounts.insert(data.account);
+          }
+          break;
+        case N(buyrambytes):
+          {
+            const auto data = at.act.data_as<zmqplugin::buyrambytes>();
+            if( data.receiver != data.payer ) {
+              accounts.insert(data.receiver);
+            }
+          }
+          break;
+        case N(buyram):
+          {
+            const auto data = at.act.data_as<zmqplugin::buyram>();
+            if( data.receiver != data.payer ) {
+              accounts.insert(data.receiver);
+            }
+          }
+          break;
+        }          
       }
       else if( at.act.name == N(issue) || at.act.name == N(transfer) ) {
         token_contracts.insert(at.act.account);
@@ -258,13 +346,19 @@ namespace eosio {
 
 }
 
-FC_REFLECT( eosio::resource_balance,
+FC_REFLECT( zmqplugin::buyrambytes,
+            (payer)(receiver)(bytes) )
+
+FC_REFLECT( zmqplugin::buyram,
+            (payer)(receiver)(quant) )
+
+FC_REFLECT( zmqplugin::resource_balance,
             (account_name)(ram_quota)(ram_usage)(net_weight)(cpu_weight)(net_limit)(cpu_limit) )
 
-FC_REFLECT( eosio::currency_balance,
+FC_REFLECT( zmqplugin::currency_balance,
             (account_name)(issuer)(balance))
 
-FC_REFLECT( eosio::zmq_action_object,
+FC_REFLECT( zmqplugin::zmq_action_object,
             (global_action_seq)(block_num)(block_time)(action_trace)
             (resource_balances)(currency_balances) )
 
