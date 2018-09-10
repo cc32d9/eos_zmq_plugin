@@ -70,6 +70,7 @@ namespace zmqplugin {
     fc::variant                  action_trace;
     vector<resource_balance>     resource_balances;
     vector<currency_balance>     currency_balances;
+    uint32_t                     last_irreversible_block;
   };
  }
 
@@ -152,6 +153,8 @@ namespace eosio {
         }
       }
 
+      zao.last_irreversible_block = chain.last_irreversible_block_num();
+      
       string zao_json = fc::json::to_string(zao);
       //idump((zao_json));
 
@@ -360,5 +363,5 @@ FC_REFLECT( zmqplugin::currency_balance,
 
 FC_REFLECT( zmqplugin::zmq_action_object,
             (global_action_seq)(block_num)(block_time)(action_trace)
-            (resource_balances)(currency_balances) )
+            (resource_balances)(currency_balances)(last_irreversible_block) )
 
