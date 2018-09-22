@@ -13,8 +13,15 @@
 #include <eosio/chain_plugin/chain_plugin.hpp>
 
 namespace {
-  const char* SENDER_BIND = "zmq-sender-bind";
-  const char* SENDER_BIND_DEFAULT = "tcp://127.0.0.1:5556";
+  const char* IRREV_SENDER = "zmq-irreversible-sender";
+  const char* IRREV_SENDER_DEFAULT = "true";
+  const char* IRREV_SENDER_BIND = "zmq-irreversible-sender-bind";
+  const char* IRREV_SENDER_BIND_DEFAULT = "tcp://127.0.0.1:5556";
+  
+  const char* REV_SENDER = "zmq-reversible-sender";
+  const char* REV_SENDER_DEFAULT = "false";
+  const char* REV_SENDER_BIND = "zmq-reversible-sender-bind";
+  const char* REV_SENDER_BIND_DEFAULT = "tcp://127.0.0.1:5557";
 }
 
 namespace zmqplugin {
@@ -126,17 +133,20 @@ namespace eosio {
   class zmq_plugin_impl {
   public:
     zmq::context_t context;
-    zmq::socket_t sender_socket;
+    zmq::socket_t rev_socket;
+    zmq::socket_t irrev_socket;
     chain_plugin*          chain_plug = nullptr;
     fc::microseconds       abi_serializer_max_time;
     std::set<name>         system_accounts;
     std::map<name,std::set<name>>  blacklist_actions;
 
     fc::optional<scoped_connection> applied_transaction_connection;
+    fc::optional<scoped_connection> irreversible_block_connection;
 
     zmq_plugin_impl():
       context(1),
-      sender_socket(context, ZMQ_PUSH)
+      rev_socket(context, ZMQ_PUB),
+      irrev_socket(context, ZMQ_PUSH)
     {
       std::vector<name> sys_acc_names = {
         chain::config::system_account_name,
@@ -153,6 +163,23 @@ namespace eosio {
                         std::set<name>{ N(onblock) } ));
     }
 
+    void on_irreversible_block( const chain::block_state_ptr& bs )
+    {
+      const auto block_num = bs->block->block_num();
+      for( const auto& receipt : bs->block->transactions ) {
+        string trx_id_str;
+        if( receipt.trx.contains<packed_transaction>() ) {
+          const auto& pt = receipt.trx.get<packed_transaction>();
+          // get id via get_raw_transaction() as packed_transaction.id() mutates internal transaction state
+          const auto& raw = pt.get_raw_transaction();
+          const auto& id = fc::raw::unpack<transaction>( raw ).id();
+          trx_id_str = id.str();
+         } else {
+          const auto& id = receipt.trx.get<transaction_id_type>();
+          trx_id_str = id.str();
+        }
+        
+    }
 
     void on_applied_transaction( const transaction_trace_ptr& trace )
     {
@@ -427,29 +454,58 @@ namespace eosio {
   void zmq_plugin::set_program_options(options_description&, options_description& cfg)
   {
     cfg.add_options()
-      (SENDER_BIND, bpo::value<string>()->default_value(SENDER_BIND_DEFAULT),
-       "ZMQ Sender Socket binding")
-      ;
+      (IRREV_SENDER, bpo::value<bool>()->default_value(IRREV_SENDER_DEFAULT),
+       "Send irreversible blocks to ZMQ");
+    cfg.add_options()
+      (IRREV_SENDER_BIND, bpo::value<string>()->default_value(IRREV_SENDER_BIND_DEFAULT),
+       "ZMQ socket binding for irreversible blocks sender");
+    cfg.add_options()
+      (REV_SENDER, bpo::value<bool>()->default_value(REV_SENDER_DEFAULT),
+       "Send reversible blocks to ZMQ");
+    cfg.add_options()
+      (REV_SENDER_BIND, bpo::value<string>()->default_value(REV_SENDER_BIND_DEFAULT),
+       "ZMQ socket binding for reversible blocks sender");
   }
 
   void zmq_plugin::plugin_initialize(const variables_map& options)
   {
-    string bind_str = options.at(SENDER_BIND).as<string>();
-    if (bind_str.empty())
-      {
-        wlog("zmq-sender-bind not specified => eosio::zmq_plugin disabled.");
-        return;
+    if( options.at(IRREV_SENDER).as<bool>() ) {
+      string bind_str = options.at(IRREV_SENDER_BIND).as<string>();
+      if( ! bind_str.empty() ) {
+        ilog("Binding irreversible blocks stream to ZMQ socket ${u}", ("u", bind_str));
+        my->irrev_socket.bind(bind_str);
+        
+        my->chain_plug = app().find_plugin<chain_plugin>();
+        my->abi_serializer_max_time = my->chain_plug->get_abi_serializer_max_time();
+        
+        auto& chain = my->chain_plug->chain();
+        my->irreversible_block_connection.emplace
+          ( chain.irreversible_block.connect( [&]( const chain::block_state_ptr& bs ) {
+              my->on_irreversible_block( bs ); } ));
       }
-    ilog("Binding to ${u}", ("u", bind_str));
-    my->sender_socket.bind(bind_str);
+      else {
+        wlog("zmq-irreversible-sender-bind not specified, not sending irreversible blocks");
+      }
+    }    
 
-    my->chain_plug = app().find_plugin<chain_plugin>();
-    my->abi_serializer_max_time = my->chain_plug->get_abi_serializer_max_time();
-
-    auto& chain = my->chain_plug->chain();
-    my->applied_transaction_connection.emplace(chain.applied_transaction.connect( [&]( const transaction_trace_ptr& p ){
-          my->on_applied_transaction(p);
-        }));
+    if( options.at(REV_SENDER).as<bool>() ) {
+      string bind_str = options.at(REV_SENDER_BIND).as<string>();
+      if( ! bind_str.empty() ) {
+        ilog("Binding reversible blocks stream to ZMQ socket ${u}", ("u", bind_str));
+        my->rev_socket.bind(bind_str);
+        
+        my->chain_plug = app().find_plugin<chain_plugin>();
+        my->abi_serializer_max_time = my->chain_plug->get_abi_serializer_max_time();
+        
+        auto& chain = my->chain_plug->chain();
+        my->applied_transaction_connection.emplace
+          ( chain.applied_transaction.connect( [&]( const transaction_trace_ptr& p ){
+              my->on_applied_transaction(p); }));
+      }
+      else {
+        wlog("zmq-reversible-sender-bind not specified, not sending reversible blocks");
+      }
+    }
   }
 
   void zmq_plugin::plugin_startup() {
