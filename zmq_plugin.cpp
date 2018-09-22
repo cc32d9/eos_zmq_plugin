@@ -8,6 +8,7 @@
 #include <zmq.hpp>
 #include <fc/io/json.hpp>
 
+#include <eosio/chain/types.hpp>
 #include <eosio/chain/controller.hpp>
 #include <eosio/chain/trace.hpp>
 #include <eosio/chain_plugin/chain_plugin.hpp>
@@ -29,17 +30,23 @@ namespace zmqplugin {
       account_name payer;
       account_name receiver;
       uint32_t bytes;
+      static account_name get_account() {return config::system_account_name;}
+      static action_name get_name() {return N(buyrambytes);}
     };
 
     struct buyram {
       account_name payer;
       account_name receiver;
       asset quant;
+      static account_name get_account() {return config::system_account_name;}
+      static action_name get_name() {return N(buyram);}
     };
 
     struct sellram {
       account_name account;
       uint64_t bytes;
+      static account_name get_account() {return config::system_account_name;}
+      static action_name get_name() {return N(sellram);}
     };
 
     struct delegatebw {
@@ -48,6 +55,8 @@ namespace zmqplugin {
       asset stake_net_quantity;
       asset stake_cpu_quantity;
       bool transfer;
+      static account_name get_account() {return config::system_account_name;}
+      static action_name get_name() {return N(delegatebw);}
     };
 
     struct undelegatebw {
@@ -55,36 +64,50 @@ namespace zmqplugin {
       account_name receiver;
       asset unstake_net_quantity;
       asset unstake_cpu_quantity;
+      static account_name get_account() {return config::system_account_name;}
+      static action_name get_name() {return N(undelegatebw);}
     };
 
     struct refund {
       account_name owner;
+      static account_name get_account() {return config::system_account_name;}
+      static action_name get_name() {return N(refund);}
     };
 
     struct regproducer {
       account_name producer;
-      public_key producer_key;
+      public_key_type producer_key;
       string url;
       uint16_t location;
+      static account_name get_account() {return config::system_account_name;}
+      static action_name get_name() {return N(regproducer);}
     };
 
     struct unregprod {
       account_name producer;
+      static account_name get_account() {return config::system_account_name;}
+      static action_name get_name() {return N(unregprod);}
     };
 
     struct regproxy {
       account_name proxy;
       bool isproxy;
+      static account_name get_account() {return config::system_account_name;}
+      static action_name get_name() {return N(regproxy);}
     };
 
     struct voteproducer {
       account_name voter;
       account_name proxy;
       std::vector<account_name> producers;
+      static account_name get_account() {return config::system_account_name;}
+      static action_name get_name() {return N(voteproducer);}
     };
 
     struct claimrewards {
       account_name owner;
+      static account_name get_account() {return config::system_account_name;}
+      static action_name get_name() {return N(claimrewards);}
     };
   }
 
@@ -156,10 +179,14 @@ namespace eosio {
 
     void on_applied_transaction( const transaction_trace_ptr& trace )
     {
-      for( const auto& atrace : trace->action_traces )
-        {
-          on_action_trace( atrace );
-        }
+      // see a long comment in mongo_db_plugin.cpp for applied_transaction()
+      if( !trace->producer_block_id.valid() ) {
+        return;
+      }
+      
+      for( const auto& atrace : trace->action_traces ) {
+        on_action_trace( atrace );
+      }
     }
 
     void on_action_trace( const action_trace& at )
@@ -344,7 +371,7 @@ namespace eosio {
           {
             const auto data = at.act.data_as<zmqplugin::syscontract::voteproducer>();
             accounts.insert(data.voter);
-            if( data.proxy != 0 ) {
+            if( data.proxy ) {
               accounts.insert(data.proxy);
             }
             // not including the producrs list, although some projects may need it
@@ -440,7 +467,7 @@ namespace eosio {
         wlog("zmq-sender-bind not specified => eosio::zmq_plugin disabled.");
         return;
       }
-    ilog("Binding to ${u}", ("u", bind_str));
+    ilog("Binding to ZMQ PUSH socket ${u}", ("u", bind_str));
     my->sender_socket.bind(bind_str);
 
     my->chain_plug = app().find_plugin<chain_plugin>();
@@ -461,11 +488,38 @@ namespace eosio {
 
 }
 
-FC_REFLECT( zmqplugin::buyrambytes,
+FC_REFLECT( zmqplugin::syscontract::buyrambytes,
             (payer)(receiver)(bytes) )
 
-FC_REFLECT( zmqplugin::buyram,
+FC_REFLECT( zmqplugin::syscontract::buyram,
             (payer)(receiver)(quant) )
+
+FC_REFLECT( zmqplugin::syscontract::sellram,
+            (account)(bytes) )
+
+FC_REFLECT( zmqplugin::syscontract::delegatebw,
+            (from)(receiver)(stake_net_quantity)(stake_cpu_quantity)(transfer) )
+
+FC_REFLECT( zmqplugin::syscontract::undelegatebw,
+            (from)(receiver)(unstake_net_quantity)(unstake_cpu_quantity) )
+
+FC_REFLECT( zmqplugin::syscontract::refund,
+            (owner) )
+
+FC_REFLECT( zmqplugin::syscontract::regproducer,
+            (producer)(producer_key)(url)(location) )
+
+FC_REFLECT( zmqplugin::syscontract::unregprod,
+            (producer) )
+
+FC_REFLECT( zmqplugin::syscontract::regproxy,
+            (proxy)(isproxy) )
+
+FC_REFLECT( zmqplugin::syscontract::voteproducer,
+            (voter)(proxy)(producers) )
+
+FC_REFLECT( zmqplugin::syscontract::claimrewards,
+            (owner) )
 
 FC_REFLECT( zmqplugin::resource_balance,
             (account_name)(ram_quota)(ram_usage)(net_weight)(cpu_weight)(net_limit)(cpu_limit) )
