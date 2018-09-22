@@ -91,7 +91,7 @@ This plugin depends on:
 
 ```bash
 apt-get install -y pkg-config libzmq5-dev
-LOCAL_CMAKE_FLAGS="-DEOSIO_ADDITIONAL_PLUGINS=${HOME}/build/eosio_zmq_plugin" ./eosio_build.sh
+LOCAL_CMAKE_FLAGS="-DEOSIO_ADDITIONAL_PLUGINS=${HOME}/build/eos_zmq_plugin" ./eosio_build.sh
 ```
 
 
