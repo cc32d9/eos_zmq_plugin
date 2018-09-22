@@ -129,12 +129,17 @@ namespace zmqplugin {
 
   struct zmq_action_object {
     uint64_t                     global_action_seq;
-    uint32_t                     block_num;
+    block_num_type               block_num;
     chain::block_timestamp_type  block_time;
     fc::variant                  action_trace;
     vector<resource_balance>     resource_balances;
     vector<currency_balance>     currency_balances;
     uint32_t                     last_irreversible_block;
+  };
+
+  struct zmq_irreversible_block_object {
+    block_num_type               block_num;
+    vector<string>               transactions;
   };
 }
 
@@ -156,6 +161,7 @@ namespace eosio {
     std::map<name,std::set<name>>  blacklist_actions;
 
     fc::optional<scoped_connection> applied_transaction_connection;
+    fc::optional<scoped_connection> irreversible_block_connection;
 
     zmq_plugin_impl():
       context(1),
@@ -177,13 +183,26 @@ namespace eosio {
     }
 
 
+    void send_msg( const string content, int32_t msgtype, int32_t msgopts)
+    {
+      zmq::message_t message(content.length()+sizeof(msgtype)+sizeof(msgopts));
+      unsigned char* ptr = (unsigned char*) message.data();
+      memcpy(ptr, &msgtype, sizeof(msgtype));
+      ptr += sizeof(msgtype);
+      memcpy(ptr, &msgopts, sizeof(msgopts));
+      ptr += sizeof(msgopts);
+      memcpy(ptr, content.c_str(), content.length());
+      sender_socket.send(message);
+    }
+
+
     void on_applied_transaction( const transaction_trace_ptr& trace )
     {
       // see a long comment in mongo_db_plugin.cpp for applied_transaction()
       if( !trace->producer_block_id.valid() ) {
         return;
       }
-      
+
       for( const auto& atrace : trace->action_traces ) {
         on_action_trace( atrace );
       }
@@ -222,22 +241,38 @@ namespace eosio {
       }
 
       zao.last_irreversible_block = chain.last_irreversible_block_num();
-
       string zao_json = fc::json::to_string(zao);
       //idump((zao_json));
-
-      int32_t msgtype = 0;
-      int32_t msgopts = 0;
-
-      zmq::message_t message(zao_json.length()+sizeof(msgtype)+sizeof(msgopts));
-      unsigned char* ptr = (unsigned char*) message.data();
-      memcpy(ptr, &msgtype, sizeof(msgtype));
-      ptr += sizeof(msgtype);
-      memcpy(ptr, &msgopts, sizeof(msgopts));
-      ptr += sizeof(msgopts);
-      memcpy(ptr, zao_json.c_str(), zao_json.length());
-      sender_socket.send(message);
+      send_msg(zao_json, 0, 0);
     }
+
+
+    void on_irreversible_block( const chain::block_state_ptr& bs )
+    {
+      zmq_irreversible_block_object zibo;
+      zibo.block_num = bs->block->block_num();
+
+      for( const auto& receipt : bs->block->transactions ) {
+        string trx_id_str;
+        if( receipt.trx.contains<packed_transaction>() ) {
+          const auto& pt = receipt.trx.get<packed_transaction>();
+          // get id via get_raw_transaction() as packed_transaction.id() mutates internal transaction state
+          const auto& raw = pt.get_raw_transaction();
+          const auto& id = fc::raw::unpack<transaction>( raw ).id();
+          trx_id_str = id.str();
+        } else {
+          const auto& id = receipt.trx.get<transaction_id_type>();
+          trx_id_str = id.str();
+        }
+
+        zibo.transactions.emplace_back(trx_id_str);
+      }
+
+      string zibo_json = fc::json::to_string(zibo);
+      //idump((zibo_json));
+      send_msg(zibo_json, 1, 0);
+    }
+
 
     void find_accounts_and_tokens(const action_trace& at,
                                   std::set<name>& accounts,
@@ -462,11 +497,11 @@ namespace eosio {
   void zmq_plugin::plugin_initialize(const variables_map& options)
   {
     string bind_str = options.at(SENDER_BIND).as<string>();
-    if (bind_str.empty())
-      {
-        wlog("zmq-sender-bind not specified => eosio::zmq_plugin disabled.");
-        return;
-      }
+    if (bind_str.empty()) {
+      wlog("zmq-sender-bind not specified => eosio::zmq_plugin disabled.");
+      return;
+    }
+
     ilog("Binding to ZMQ PUSH socket ${u}", ("u", bind_str));
     my->sender_socket.bind(bind_str);
 
@@ -474,9 +509,12 @@ namespace eosio {
     my->abi_serializer_max_time = my->chain_plug->get_abi_serializer_max_time();
 
     auto& chain = my->chain_plug->chain();
-    my->applied_transaction_connection.emplace(chain.applied_transaction.connect( [&]( const transaction_trace_ptr& p ){
-          my->on_applied_transaction(p);
-        }));
+    my->applied_transaction_connection.emplace
+      ( chain.applied_transaction.connect( [&]( const transaction_trace_ptr& p ){
+          my->on_applied_transaction(p);  }));
+    my->irreversible_block_connection.emplace
+      ( chain.irreversible_block.connect( [&]( const chain::block_state_ptr& bs ) {
+          my->on_irreversible_block( bs ); } ));
   }
 
   void zmq_plugin::plugin_startup() {
@@ -531,3 +569,5 @@ FC_REFLECT( zmqplugin::zmq_action_object,
             (global_action_seq)(block_num)(block_time)(action_trace)
             (resource_balances)(currency_balances)(last_irreversible_block) )
 
+FC_REFLECT( zmqplugin::zmq_irreversible_block_object,
+            (block_num)(transactions) )
