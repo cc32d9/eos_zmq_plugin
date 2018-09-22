@@ -22,31 +22,72 @@ namespace zmqplugin {
   using namespace eosio::chain;
   using account_resource_limit = chain::resource_limits::account_resource_limit;
 
-  // these two structures are not defined in contract_types.hpp, so we define them here
-  struct buyrambytes {
-    account_name payer;
-    account_name receiver;
-    uint32_t bytes;
-    static account_name get_account() {
-      return config::system_account_name;
-    }
-    static action_name get_name() {
-      return N(buyrambytes);
-    }
-  };
+  // these structures are not defined in contract_types.hpp, so we define them here
+  namespace syscontract {
 
-  struct buyram {
-    account_name payer;
-    account_name receiver;
-    asset quant;
-    static account_name get_account() {
-      return config::system_account_name;
-    }
-    static action_name get_name() {
-      return N(buyram);
-    }
-  };
- 
+    struct buyrambytes {
+      account_name payer;
+      account_name receiver;
+      uint32_t bytes;
+    };
+
+    struct buyram {
+      account_name payer;
+      account_name receiver;
+      asset quant;
+    };
+
+    struct sellram {
+      account_name account;
+      uint64_t bytes;
+    };
+
+    struct delegatebw {
+      account_name from;
+      account_name receiver;
+      asset stake_net_quantity;
+      asset stake_cpu_quantity;
+      bool transfer;
+    };
+
+    struct undelegatebw {
+      account_name from;
+      account_name receiver;
+      asset unstake_net_quantity;
+      asset unstake_cpu_quantity;
+    };
+
+    struct refund {
+      account_name owner;
+    };
+
+    struct regproducer {
+      account_name producer;
+      public_key producer_key;
+      string url;
+      uint16_t location;
+    };
+
+    struct unregprod {
+      account_name producer;
+    };
+
+    struct regproxy {
+      account_name proxy;
+      bool isproxy;
+    };
+
+    struct voteproducer {
+      account_name voter;
+      account_name proxy;
+      std::vector<account_name> producers;
+    };
+
+    struct claimrewards {
+      account_name owner;
+    };
+  }
+
   struct resource_balance {
     name                       account_name;
     int64_t                    ram_quota  = 0;
@@ -72,7 +113,7 @@ namespace zmqplugin {
     vector<currency_balance>     currency_balances;
     uint32_t                     last_irreversible_block;
   };
- }
+}
 
 
 namespace eosio {
@@ -106,7 +147,7 @@ namespace eosio {
       for(name n : sys_acc_names) {
         system_accounts.insert(n);
       }
-      
+
       blacklist_actions.emplace
         (std::make_pair(chain::config::system_account_name,
                         std::set<name>{ N(onblock) } ));
@@ -131,7 +172,7 @@ namespace eosio {
           return;
         }
       }
-      
+
       auto& chain = chain_plug->chain();
 
       zmq_action_object zao;
@@ -154,7 +195,7 @@ namespace eosio {
       }
 
       zao.last_irreversible_block = chain.last_irreversible_block_num();
-      
+
       string zao_json = fc::json::to_string(zao);
       //idump((zao_json));
 
@@ -230,7 +271,8 @@ namespace eosio {
           break;
         case N(buyrambytes):
           {
-            const auto data = at.act.data_as<zmqplugin::buyrambytes>();
+            const auto data = at.act.data_as<zmqplugin::syscontract::buyrambytes>();
+            accounts.insert(data.payer);
             if( data.receiver != data.payer ) {
               accounts.insert(data.receiver);
             }
@@ -238,13 +280,83 @@ namespace eosio {
           break;
         case N(buyram):
           {
-            const auto data = at.act.data_as<zmqplugin::buyram>();
+            const auto data = at.act.data_as<zmqplugin::syscontract::buyram>();
+            accounts.insert(data.payer);
             if( data.receiver != data.payer ) {
               accounts.insert(data.receiver);
             }
           }
           break;
-        }          
+        case N(sellram):
+          {
+            const auto data = at.act.data_as<zmqplugin::syscontract::sellram>();
+            accounts.insert(data.account);
+          }
+          break;
+        case N(delegatebw):
+          {
+            const auto data = at.act.data_as<zmqplugin::syscontract::delegatebw>();
+            accounts.insert(data.from);
+            if( data.receiver != data.from ) {
+              accounts.insert(data.receiver);
+            }
+          }
+          break;
+        case N(undelegatebw):
+          {
+            const auto data = at.act.data_as<zmqplugin::syscontract::undelegatebw>();
+            accounts.insert(data.from);
+            if( data.receiver != data.from ) {
+              accounts.insert(data.receiver);
+            }
+          }
+          break;
+        case N(refund):
+          {
+            const auto data = at.act.data_as<zmqplugin::syscontract::refund>();
+            accounts.insert(data.owner);
+          }
+          break;
+        case N(regproducer):
+          {
+            const auto data = at.act.data_as<zmqplugin::syscontract::regproducer>();
+            accounts.insert(data.producer);
+          }
+          break;
+        case N(bidname):
+          {
+            // do nothing because newname account does not exist yet
+          }
+          break;
+        case N(unregprod):
+          {
+            const auto data = at.act.data_as<zmqplugin::syscontract::unregprod>();
+            accounts.insert(data.producer);
+          }
+          break;
+        case N(regproxy):
+          {
+            const auto data = at.act.data_as<zmqplugin::syscontract::regproxy>();
+            accounts.insert(data.proxy);
+          }
+          break;
+        case N(voteproducer):
+          {
+            const auto data = at.act.data_as<zmqplugin::syscontract::voteproducer>();
+            accounts.insert(data.voter);
+            if( data.proxy != 0 ) {
+              accounts.insert(data.proxy);
+            }
+            // not including the producrs list, although some projects may need it
+          }
+          break;
+        case N(claimrewards):
+          {
+            const auto data = at.act.data_as<zmqplugin::syscontract::claimrewards>();
+            accounts.insert(data.owner);
+          }
+          break;
+        }
       }
       else if( at.act.name == N(issue) || at.act.name == N(transfer) ) {
         token_contracts.insert(at.act.account);
@@ -333,7 +445,7 @@ namespace eosio {
 
     my->chain_plug = app().find_plugin<chain_plugin>();
     my->abi_serializer_max_time = my->chain_plug->get_abi_serializer_max_time();
-    
+
     auto& chain = my->chain_plug->chain();
     my->applied_transaction_connection.emplace(chain.applied_transaction.connect( [&]( const transaction_trace_ptr& p ){
           my->on_applied_transaction(p);
