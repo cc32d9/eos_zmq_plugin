@@ -234,9 +234,11 @@ namespace eosio {
 
       for (auto it = accounts.begin(); it != accounts.end(); ++it) {
         name account_name = *it;
-        add_account_resource( zao, account_name );
-        for (auto it2 = token_contracts.begin(); it2 != token_contracts.end(); ++it2) {
-          add_currency_balances( zao, account_name, *it2 );
+        if( is_account_of_interest(account_name) ) {
+          add_account_resource( zao, account_name );
+          for (auto it2 = token_contracts.begin(); it2 != token_contracts.end(); ++it2) {
+            add_currency_balances( zao, account_name, *it2 );
+          }
         }
       }
 
@@ -278,12 +280,9 @@ namespace eosio {
                                   std::set<name>& accounts,
                                   std::set<name>& token_contracts)
     {
-      if( is_account_of_interest(at.act.account) ) {
-        accounts.insert(at.act.account);
-      }
+      accounts.insert(at.act.account);
 
-      if( at.receipt.receiver != at.act.account &&
-          is_account_of_interest(at.receipt.receiver) ) {
+      if( at.receipt.receiver != at.act.account ) {
         accounts.insert(at.receipt.receiver);
       }
 
