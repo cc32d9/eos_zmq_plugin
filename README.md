@@ -142,6 +142,8 @@ to save the CPU resource.
 System accounts, such as `eosio` and `eosio.token` and few others are
 not listed in `currency_balances` and `resource_balances`.
 
+Action `tweet` in `blocktwitter` account is blacklisted in order to
+speed up re-synching with mainnet.
 
 
 ## Author
