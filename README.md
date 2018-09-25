@@ -22,8 +22,9 @@ let other systems listen to events on the go.
 ## Socket message format
 
 1. 32-bit signed integer in host native format (little-endian on most
-   platforms): `msgtype=0`. Other values are reserved for future message
-   types.
+   platforms): `msgtype=0|1`. Zero indicates an action trace, and 1
+   indicates an irreversible block information. Other values are
+   reserved for future message types.
 
 2. 32-bit signed integer in host native format:
    `msgopts=0`. Other values are reserved for future option codes.
@@ -32,7 +33,7 @@ let other systems listen to events on the go.
 
 
 
-## JSON data format
+## JSON data format (action trace, msgtype=0)
 
 The JSON data is a map with the following entries:
 
@@ -62,10 +63,35 @@ The JSON data is a map with the following entries:
 
   * `ram_usage`: used RAM, in bytes.
 
-
 Unlike `history_plugin`, this plugin does not deliver
 `account_action_seq`, because that value is calculated internally by the
 history plugin.
+
+
+## JSON data format (irreversible block, msgtype=1)
+
+The JSON data is a map with the following fields:
+
+1. `block_num`: irreversible block number.
+
+2. `transactions`: array of transaction identifiers and their statuses
+   in maps as follows: `trx_id` with transaction ID string, `status`
+   with symbolic status, and `istatus` with numeric status.
+
+Transaction status values are defined in
+"libraries/chain/include/eosio/chain/block.hpp" in EOS suite as follows:
+
+```
+      enum status_enum {
+         executed  = 0, ///< succeed, no error handler executed
+         soft_fail = 1, ///< objectively failed (not executed), error handler executed
+         hard_fail = 2, ///< objectively failed and error handler objectively failed thus no state change
+         delayed   = 3, ///< transaction delayed/deferred/scheduled for future execution
+         expired   = 4  ///< transaction expired and storage space refuned to user
+      };
+```
+ 
+
 
 
 
@@ -84,14 +110,26 @@ The following configuration statements in `config.ini` are recognized:
 
 This plugin depends on:
 
-* Pull request https://github.com/EOSIO/eos/pull/5026
-
 * Modification in build script https://github.com/EOSIO/eos/issues/5229
 
 
 ```bash
 apt-get install -y pkg-config libzmq5-dev
+mkdir ${HOME}/build
+cd ${HOME}/build/
+git clone https://github.com/cc32d9/eos_zmq_plugin.git
+git clone https://github.com/EOSIO/eos --recursive
+cd eos
+#
+# edit eosio_build.sh according to
+# https://github.com/EOSIO/eos/issues/5229
+vi eosio_build.sh
+
+# compile EOS suite
 LOCAL_CMAKE_FLAGS="-DEOSIO_ADDITIONAL_PLUGINS=${HOME}/build/eos_zmq_plugin" ./eosio_build.sh
+
+# insttall
+sudo ./eosio_install.sh
 ```
 
 
