@@ -137,9 +137,16 @@ namespace zmqplugin {
     uint32_t                     last_irreversible_block;
   };
 
+  // see status definitions in libraries/chain/include/eosio/chain/block.hpp
+  struct zmq_transaction_receipt {
+    string                                         trx_id;
+    eosio::chain::transaction_receipt::status_enum status;  // enum
+    uint8_t                                        istatus; // the same as status, but integer
+  };
+  
   struct zmq_irreversible_block_object {
-    block_num_type               block_num;
-    vector<string>               transactions;
+    block_num_type                    block_num;
+    vector<zmq_transaction_receipt>   transactions;
   };
 }
 
@@ -267,7 +274,8 @@ namespace eosio {
           trx_id_str = id.str();
         }
 
-        zibo.transactions.emplace_back(trx_id_str);
+        zibo.transactions.emplace_back(zmq_transaction_receipt
+                                       {trx_id_str, receipt.status, static_cast<uint8_t>(receipt.status)});
       }
 
       string zibo_json = fc::json::to_string(zibo);
@@ -567,6 +575,9 @@ FC_REFLECT( zmqplugin::currency_balance,
 FC_REFLECT( zmqplugin::zmq_action_object,
             (global_action_seq)(block_num)(block_time)(action_trace)
             (resource_balances)(currency_balances)(last_irreversible_block) )
+
+FC_REFLECT( zmqplugin::zmq_transaction_receipt,
+            (trx_id)(status)(istatus) )
 
 FC_REFLECT( zmqplugin::zmq_irreversible_block_object,
             (block_num)(transactions) )
