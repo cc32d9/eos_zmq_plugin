@@ -281,9 +281,11 @@ namespace eosio {
                                        {trx_id_str, receipt.status, static_cast<uint8_t>(receipt.status)});
       }
 
-      string zibo_json = fc::json::to_string(zibo);
-      //idump((zibo_json));
-      send_msg(zibo_json, 1, 0);
+      if( zibo.transactions.size() > 0 ) {
+        string zibo_json = fc::json::to_string(zibo);
+        //idump((zibo_json));
+        send_msg(zibo_json, 1, 0);
+      }
     }
 
 
