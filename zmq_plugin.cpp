@@ -16,6 +16,9 @@
 namespace {
   const char* SENDER_BIND = "zmq-sender-bind";
   const char* SENDER_BIND_DEFAULT = "tcp://127.0.0.1:5556";
+  const int32_t MSGTYPE_ACTION_TRACE = 0;
+  const int32_t MSGTYPE_IRREVERSIBLE_BLOCK = 1;
+  const int32_t MSGTYPE_FORK = 2;
 }
 
 namespace zmqplugin {
@@ -148,6 +151,10 @@ namespace zmqplugin {
     block_num_type                    block_num;
     vector<zmq_transaction_receipt>   transactions;
   };
+
+  struct zmq_fork_block_object {
+    block_num_type                    invalid_block_num;
+  };
 }
 
 
@@ -166,8 +173,11 @@ namespace eosio {
     fc::microseconds       abi_serializer_max_time;
     std::set<name>         system_accounts;
     std::map<name,std::set<name>>  blacklist_actions;
-
+    std::map<transaction_id_type, transaction_trace_ptr> cached_traces;
+    uint32_t _end_block = 0;
+    
     fc::optional<scoped_connection> applied_transaction_connection;
+    fc::optional<scoped_connection> accepted_block_connection;
     fc::optional<scoped_connection> irreversible_block_connection;
 
     zmq_plugin_impl():
@@ -206,17 +216,50 @@ namespace eosio {
     }
 
 
-    void on_applied_transaction( const transaction_trace_ptr& trace )
+    void on_applied_transaction( const transaction_trace_ptr& p )
     {
-      // see a long comment in mongo_db_plugin.cpp for applied_transaction()
-      if( !trace->producer_block_id.valid() ) {
-        return;
-      }
-
-      for( const auto& atrace : trace->action_traces ) {
-        on_action_trace( atrace );
+      if (p->receipt) {
+        cached_traces[p->id] = p;
       }
     }
+
+    
+    void on_accepted_block(const block_state_ptr& block_state)
+    {
+      auto block_num = block_state->block->block_num();
+      if ( _end_block >= block_num ) {
+        // report a fork. All traces sent with higher block number are invalid.
+        zmq_fork_block_object zfbo;
+        zfbo.invalid_block_num = block_num;
+        string zfbo_json = fc::json::to_string(zfbo);
+        send_msg(zfbo_json, MSGTYPE_FORK, 0);
+      }
+      
+      _end_block = block_num;
+          
+      for (auto& r : block_state->block->transactions) {
+
+        transaction_id_type id;
+        if (r.trx.contains<transaction_id_type>()) {
+          id = r.trx.get<transaction_id_type>();
+        }
+        else {
+          id = r.trx.get<packed_transaction>().id();
+        }
+        
+        auto it = cached_traces.find(id);
+        if (it == cached_traces.end() || !it->second->receipt) {
+          ilog("missing trace for transaction {id}", ("id", id));
+          continue;
+        }
+        
+        for( const auto& atrace : it->second->action_traces ) {
+          on_action_trace( atrace );
+        }
+      }
+      cached_traces.clear();      
+    }
+
 
     void on_action_trace( const action_trace& at )
     {
@@ -254,8 +297,7 @@ namespace eosio {
 
       zao.last_irreversible_block = chain.last_irreversible_block_num();
       string zao_json = fc::json::to_string(zao);
-      //idump((zao_json));
-      send_msg(zao_json, 0, 0);
+      send_msg(zao_json, MSGTYPE_ACTION_TRACE, 0);
     }
 
 
@@ -283,8 +325,7 @@ namespace eosio {
 
       if( zibo.transactions.size() > 0 ) {
         string zibo_json = fc::json::to_string(zibo);
-        //idump((zibo_json));
-        send_msg(zibo_json, 1, 0);
+        send_msg(zibo_json, MSGTYPE_IRREVERSIBLE_BLOCK, 0);
       }
     }
 
@@ -521,9 +562,15 @@ namespace eosio {
     my->abi_serializer_max_time = my->chain_plug->get_abi_serializer_max_time();
 
     auto& chain = my->chain_plug->chain();
+    
     my->applied_transaction_connection.emplace
       ( chain.applied_transaction.connect( [&]( const transaction_trace_ptr& p ){
           my->on_applied_transaction(p);  }));
+    
+    my->accepted_block_connection.emplace
+      ( chain.accepted_block.connect([&](const block_state_ptr& p) {
+          my->on_accepted_block(p); }));
+    
     my->irreversible_block_connection.emplace
       ( chain.irreversible_block.connect( [&]( const chain::block_state_ptr& bs ) {
           my->on_irreversible_block( bs ); } ));
@@ -586,3 +633,6 @@ FC_REFLECT( zmqplugin::zmq_transaction_receipt,
 
 FC_REFLECT( zmqplugin::zmq_irreversible_block_object,
             (block_num)(transactions) )
+
+FC_REFLECT( zmqplugin::zmq_fork_block_object,
+            (invalid_block_num) )
