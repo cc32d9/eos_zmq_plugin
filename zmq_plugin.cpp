@@ -148,8 +148,7 @@ namespace zmqplugin {
   };
   
   struct zmq_irreversible_block_object {
-    block_num_type                    block_num;
-    vector<zmq_transaction_receipt>   transactions;
+    block_num_type                    irreversible_block_num;
   };
 
   struct zmq_fork_block_object {
@@ -238,25 +237,28 @@ namespace eosio {
       _end_block = block_num;
           
       for (auto& r : block_state->block->transactions) {
-
-        transaction_id_type id;
-        if (r.trx.contains<transaction_id_type>()) {
-          id = r.trx.get<transaction_id_type>();
-        }
-        else {
-          id = r.trx.get<packed_transaction>().id();
-        }
-        
-        auto it = cached_traces.find(id);
-        if (it == cached_traces.end() || !it->second->receipt) {
-          ilog("missing trace for transaction {id}", ("id", id));
-          continue;
-        }
-        
-        for( const auto& atrace : it->second->action_traces ) {
-          on_action_trace( atrace );
+        // Use only transactions with status: executed
+        if( r.status == transaction_receipt_header::executed ) {
+          transaction_id_type id;
+          if (r.trx.contains<transaction_id_type>()) {
+            id = r.trx.get<transaction_id_type>();
+          }
+          else {
+            id = r.trx.get<packed_transaction>().id();
+          }
+          
+          auto it = cached_traces.find(id);
+          if (it == cached_traces.end() || !it->second->receipt) {
+            ilog("missing trace for transaction {id}", ("id", id));
+            continue;
+          }
+          
+          for( const auto& atrace : it->second->action_traces ) {
+            on_action_trace( atrace );
+          }
         }
       }
+      
       cached_traces.clear();      
     }
 
@@ -304,29 +306,9 @@ namespace eosio {
     void on_irreversible_block( const chain::block_state_ptr& bs )
     {
       zmq_irreversible_block_object zibo;
-      zibo.block_num = bs->block->block_num();
-
-      for( const auto& receipt : bs->block->transactions ) {
-        string trx_id_str;
-        if( receipt.trx.contains<packed_transaction>() ) {
-          const auto& pt = receipt.trx.get<packed_transaction>();
-          // get id via get_raw_transaction() as packed_transaction.id() mutates internal transaction state
-          const auto& raw = pt.get_raw_transaction();
-          const auto& id = fc::raw::unpack<transaction>( raw ).id();
-          trx_id_str = id.str();
-        } else {
-          const auto& id = receipt.trx.get<transaction_id_type>();
-          trx_id_str = id.str();
-        }
-
-        zibo.transactions.emplace_back(zmq_transaction_receipt
-                                       {trx_id_str, receipt.status, static_cast<uint8_t>(receipt.status)});
-      }
-
-      if( zibo.transactions.size() > 0 ) {
-        string zibo_json = fc::json::to_string(zibo);
-        send_msg(zibo_json, MSGTYPE_IRREVERSIBLE_BLOCK, 0);
-      }
+      zibo.irreversible_block_num = bs->block->block_num();
+      string zibo_json = fc::json::to_string(zibo);
+      send_msg(zibo_json, MSGTYPE_IRREVERSIBLE_BLOCK, 0);
     }
 
 
@@ -632,7 +614,7 @@ FC_REFLECT( zmqplugin::zmq_transaction_receipt,
             (trx_id)(status)(istatus) )
 
 FC_REFLECT( zmqplugin::zmq_irreversible_block_object,
-            (block_num)(transactions) )
+            (irreversible_block_num) )
 
 FC_REFLECT( zmqplugin::zmq_fork_block_object,
             (invalid_block_num) )
