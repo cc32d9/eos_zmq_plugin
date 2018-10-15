@@ -127,7 +127,7 @@ namespace zmqplugin {
 
   struct currency_balance {
     name                       account_name;
-    name                       issuer;
+    name                       contract;
     asset                      balance;
   };
 
@@ -147,7 +147,7 @@ namespace zmqplugin {
     eosio::chain::transaction_receipt::status_enum status;  // enum
     uint8_t                                        istatus; // the same as status, but integer
   };
-  
+
   struct zmq_irreversible_block_object {
     block_num_type               irreversible_block_num;
     digest_type                  irreversible_block_digest;
@@ -181,7 +181,7 @@ namespace eosio {
     std::map<name,std::set<name>>  blacklist_actions;
     std::map<transaction_id_type, transaction_trace_ptr> cached_traces;
     uint32_t _end_block = 0;
-    
+
     fc::optional<scoped_connection> applied_transaction_connection;
     fc::optional<scoped_connection> accepted_block_connection;
     fc::optional<scoped_connection> irreversible_block_connection;
@@ -229,7 +229,7 @@ namespace eosio {
       }
     }
 
-    
+
     void on_accepted_block(const block_state_ptr& block_state)
     {
       auto block_num = block_state->block->block_num();
@@ -240,9 +240,9 @@ namespace eosio {
         string zfbo_json = fc::json::to_string(zfbo);
         send_msg(zfbo_json, MSGTYPE_FORK, 0);
       }
-      
+
       _end_block = block_num;
-          
+
       zmq_accepted_block_object zabo;
       zabo.accepted_block_num = block_num;
       zabo.accepted_block_digest = block_state->block->digest();
@@ -259,20 +259,20 @@ namespace eosio {
           else {
             id = r.trx.get<packed_transaction>().id();
           }
-          
+
           auto it = cached_traces.find(id);
           if (it == cached_traces.end() || !it->second->receipt) {
             ilog("missing trace for transaction {id}", ("id", id));
             continue;
           }
-          
+
           for( const auto& atrace : it->second->action_traces ) {
             on_action_trace( atrace );
           }
         }
       }
-      
-      cached_traces.clear();      
+
+      cached_traces.clear();
     }
 
 
@@ -558,15 +558,15 @@ namespace eosio {
     my->abi_serializer_max_time = my->chain_plug->get_abi_serializer_max_time();
 
     auto& chain = my->chain_plug->chain();
-    
+
     my->applied_transaction_connection.emplace
       ( chain.applied_transaction.connect( [&]( const transaction_trace_ptr& p ){
           my->on_applied_transaction(p);  }));
-    
+
     my->accepted_block_connection.emplace
       ( chain.accepted_block.connect([&](const block_state_ptr& p) {
           my->on_accepted_block(p); }));
-    
+
     my->irreversible_block_connection.emplace
       ( chain.irreversible_block.connect( [&]( const chain::block_state_ptr& bs ) {
           my->on_irreversible_block( bs ); } ));
@@ -618,7 +618,7 @@ FC_REFLECT( zmqplugin::resource_balance,
             (account_name)(ram_quota)(ram_usage)(net_weight)(cpu_weight)(net_limit)(cpu_limit) )
 
 FC_REFLECT( zmqplugin::currency_balance,
-            (account_name)(issuer)(balance))
+            (account_name)(contract)(balance))
 
 FC_REFLECT( zmqplugin::zmq_action_object,
             (global_action_seq)(block_num)(block_time)(action_trace)
