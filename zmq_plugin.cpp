@@ -175,6 +175,7 @@ namespace eosio {
   public:
     zmq::context_t context;
     zmq::socket_t sender_socket;
+    string socket_bind_str;
     chain_plugin*          chain_plug = nullptr;
     fc::microseconds       abi_serializer_max_time;
     std::set<name>         system_accounts;
@@ -545,14 +546,14 @@ namespace eosio {
 
   void zmq_plugin::plugin_initialize(const variables_map& options)
   {
-    string bind_str = options.at(SENDER_BIND).as<string>();
-    if (bind_str.empty()) {
+    my->socket_bind_str = options.at(SENDER_BIND).as<string>();
+    if (my->socket_bind_str.empty()) {
       wlog("zmq-sender-bind not specified => eosio::zmq_plugin disabled.");
       return;
     }
 
-    ilog("Binding to ZMQ PUSH socket ${u}", ("u", bind_str));
-    my->sender_socket.bind(bind_str);
+    ilog("Binding to ZMQ PUSH socket ${u}", ("u", my->socket_bind_str));
+    my->sender_socket.bind(my->socket_bind_str);
 
     my->chain_plug = app().find_plugin<chain_plugin>();
     my->abi_serializer_max_time = my->chain_plug->get_abi_serializer_max_time();
@@ -577,8 +578,11 @@ namespace eosio {
   }
 
   void zmq_plugin::plugin_shutdown() {
+    if( ! my->socket_bind_str.empty() ) {
+      my->sender_socket.disconnect(my->socket_bind_str);
+      my->sender_socket.close();
+    }
   }
-
 }
 
 FC_REFLECT( zmqplugin::syscontract::buyrambytes,
