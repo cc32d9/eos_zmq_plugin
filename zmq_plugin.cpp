@@ -469,7 +469,7 @@ namespace eosio {
           break;
         }
       }
-      else if( at.act.name == N(issue) || at.act.name == N(transfer) ) {
+      else if( at.act.name == N(transfer) || at.act.name == N(issue) || at.act.name == N(open) ) {
         token_contracts.insert(at.act.account);
       }
 
