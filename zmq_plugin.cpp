@@ -19,6 +19,7 @@ namespace {
   const int32_t MSGTYPE_ACTION_TRACE = 0;
   const int32_t MSGTYPE_IRREVERSIBLE_BLOCK = 1;
   const int32_t MSGTYPE_FORK = 2;
+  const int32_t MSGTYPE_ACCEPTED_BLOCK = 3;
 }
 
 namespace zmqplugin {
@@ -148,11 +149,17 @@ namespace zmqplugin {
   };
   
   struct zmq_irreversible_block_object {
-    block_num_type                    irreversible_block_num;
+    block_num_type               irreversible_block_num;
+    digest_type                  irreversible_block_digest;
   };
 
   struct zmq_fork_block_object {
     block_num_type                    invalid_block_num;
+  };
+
+  struct zmq_accepted_block_object {
+    block_num_type               accepted_block_num;
+    digest_type                  accepted_block_digest;
   };
 }
 
@@ -236,6 +243,12 @@ namespace eosio {
       
       _end_block = block_num;
           
+      zmq_accepted_block_object zabo;
+      zabo.accepted_block_num = block_num;
+      zabo.accepted_block_digest = block_state->block->digest();
+      string zabo_json = fc::json::to_string(zabo);
+      send_msg(zabo_json, MSGTYPE_ACCEPTED_BLOCK, 0);
+
       for (auto& r : block_state->block->transactions) {
         // Use only transactions with status: executed
         if( r.status == transaction_receipt_header::executed ) {
@@ -307,6 +320,7 @@ namespace eosio {
     {
       zmq_irreversible_block_object zibo;
       zibo.irreversible_block_num = bs->block->block_num();
+      zibo.irreversible_block_digest = bs->block->digest();
       string zibo_json = fc::json::to_string(zibo);
       send_msg(zibo_json, MSGTYPE_IRREVERSIBLE_BLOCK, 0);
     }
@@ -614,7 +628,10 @@ FC_REFLECT( zmqplugin::zmq_transaction_receipt,
             (trx_id)(status)(istatus) )
 
 FC_REFLECT( zmqplugin::zmq_irreversible_block_object,
-            (irreversible_block_num) )
+            (irreversible_block_num)(irreversible_block_digest) )
 
 FC_REFLECT( zmqplugin::zmq_fork_block_object,
             (invalid_block_num) )
+
+FC_REFLECT( zmqplugin::zmq_accepted_block_object,
+            (accepted_block_num)(accepted_block_digest) )
