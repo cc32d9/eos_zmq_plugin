@@ -268,7 +268,7 @@ namespace eosio {
           }
 
           for( const auto& atrace : it->second->action_traces ) {
-            on_action_trace( atrace );
+            on_action_trace( atrace, block_state );
           }
         }
       }
@@ -277,7 +277,7 @@ namespace eosio {
     }
 
 
-    void on_action_trace( const action_trace& at )
+    void on_action_trace( const action_trace& at, const block_state_ptr& block_state )
     {
       // check the action against the blacklist
       auto search_acc = blacklist_actions.find(at.act.account);
@@ -292,8 +292,8 @@ namespace eosio {
 
       zmq_action_object zao;
       zao.global_action_seq = at.receipt.global_sequence;
-      zao.block_num = chain.pending_block_state()->block_num;
-      zao.block_time = chain.pending_block_time();
+      zao.block_num = block_state->block->block_num();
+      zao.block_time = block_state->block->timestamp;
       zao.action_trace = chain.to_variant_with_abi(at, abi_serializer_max_time);
 
       std::set<name> accounts;
