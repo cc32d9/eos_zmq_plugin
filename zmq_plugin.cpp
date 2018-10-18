@@ -244,12 +244,14 @@ namespace eosio {
 
       _end_block = block_num;
 
-      zmq_accepted_block_object zabo;
-      zabo.accepted_block_num = block_num;
-      zabo.accepted_block_digest = block_state->block->digest();
-      string zabo_json = fc::json::to_string(zabo);
-      send_msg(zabo_json, MSGTYPE_ACCEPTED_BLOCK, 0);
-
+      {
+        zmq_accepted_block_object zabo;
+        zabo.accepted_block_num = block_num;
+        zabo.accepted_block_digest = block_state->block->digest();
+        string zabo_json = fc::json::to_string(zabo);
+        send_msg(zabo_json, MSGTYPE_ACCEPTED_BLOCK, 0);
+      }
+      
       for (auto& r : block_state->block->transactions) {
         // Use only transactions with status: executed
         if( r.status == transaction_receipt_header::executed ) {
