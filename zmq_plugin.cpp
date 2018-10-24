@@ -20,6 +20,7 @@ namespace {
   const int32_t MSGTYPE_IRREVERSIBLE_BLOCK = 1;
   const int32_t MSGTYPE_FORK = 2;
   const int32_t MSGTYPE_ACCEPTED_BLOCK = 3;
+  const int32_t MSGTYPE_FAILED_TX = 4;
 }
 
 namespace zmqplugin {
@@ -141,13 +142,6 @@ namespace zmqplugin {
     uint32_t                     last_irreversible_block;
   };
 
-  // see status definitions in libraries/chain/include/eosio/chain/block.hpp
-  struct zmq_transaction_receipt {
-    string                                         trx_id;
-    eosio::chain::transaction_receipt::status_enum status;  // enum
-    uint8_t                                        istatus; // the same as status, but integer
-  };
-
   struct zmq_irreversible_block_object {
     block_num_type               irreversible_block_num;
     digest_type                  irreversible_block_digest;
@@ -160,6 +154,14 @@ namespace zmqplugin {
   struct zmq_accepted_block_object {
     block_num_type               accepted_block_num;
     digest_type                  accepted_block_digest;
+  };
+
+  // see status definitions in libraries/chain/include/eosio/chain/block.hpp
+  struct zmq_failed_transaction_object {
+    string                                         trx_id;
+    block_num_type                                 block_num;
+    eosio::chain::transaction_receipt::status_enum status_name; // enum
+    uint8_t                                        status_int;  // the same as status, but integer
   };
 }
 
@@ -238,8 +240,7 @@ namespace eosio {
         // report a fork. All traces sent with higher block number are invalid.
         zmq_fork_block_object zfbo;
         zfbo.invalid_block_num = block_num;
-        string zfbo_json = fc::json::to_string(zfbo);
-        send_msg(zfbo_json, MSGTYPE_FORK, 0);
+        send_msg(fc::json::to_string(zfbo), MSGTYPE_FORK, 0);
       }
 
       _end_block = block_num;
@@ -248,21 +249,20 @@ namespace eosio {
         zmq_accepted_block_object zabo;
         zabo.accepted_block_num = block_num;
         zabo.accepted_block_digest = block_state->block->digest();
-        string zabo_json = fc::json::to_string(zabo);
-        send_msg(zabo_json, MSGTYPE_ACCEPTED_BLOCK, 0);
+        send_msg(fc::json::to_string(zabo), MSGTYPE_ACCEPTED_BLOCK, 0);
       }
       
       for (auto& r : block_state->block->transactions) {
-        // Use only transactions with status: executed
+        transaction_id_type id;
+        if (r.trx.contains<transaction_id_type>()) {
+          id = r.trx.get<transaction_id_type>();
+        }
+        else {
+          id = r.trx.get<packed_transaction>().id();
+        }
+        
         if( r.status == transaction_receipt_header::executed ) {
-          transaction_id_type id;
-          if (r.trx.contains<transaction_id_type>()) {
-            id = r.trx.get<transaction_id_type>();
-          }
-          else {
-            id = r.trx.get<packed_transaction>().id();
-          }
-
+          // Send traces only for executed transactions
           auto it = cached_traces.find(id);
           if (it == cached_traces.end() || !it->second->receipt) {
             ilog("missing trace for transaction {id}", ("id", id));
@@ -272,6 +272,15 @@ namespace eosio {
           for( const auto& atrace : it->second->action_traces ) {
             on_action_trace( atrace, block_state );
           }
+        }
+        else {
+          // Notify about a failed transaction
+          zmq_failed_transaction_object zfto;
+          zfto.trx_id = id.str();
+          zfto.block_num = block_num;
+          zfto.status_name = r.status;
+          zfto.status_int = static_cast<uint8_t>(r.status);
+          send_msg(fc::json::to_string(zfto), MSGTYPE_FAILED_TX, 0);          
         }
       }
 
@@ -314,8 +323,7 @@ namespace eosio {
       }
 
       zao.last_irreversible_block = chain.last_irreversible_block_num();
-      string zao_json = fc::json::to_string(zao);
-      send_msg(zao_json, MSGTYPE_ACTION_TRACE, 0);
+      send_msg(fc::json::to_string(zao), MSGTYPE_ACTION_TRACE, 0);
     }
 
 
@@ -324,8 +332,7 @@ namespace eosio {
       zmq_irreversible_block_object zibo;
       zibo.irreversible_block_num = bs->block->block_num();
       zibo.irreversible_block_digest = bs->block->digest();
-      string zibo_json = fc::json::to_string(zibo);
-      send_msg(zibo_json, MSGTYPE_IRREVERSIBLE_BLOCK, 0);
+      send_msg(fc::json::to_string(zibo), MSGTYPE_IRREVERSIBLE_BLOCK, 0);
     }
 
 
@@ -630,9 +637,6 @@ FC_REFLECT( zmqplugin::zmq_action_object,
             (global_action_seq)(block_num)(block_time)(action_trace)
             (resource_balances)(currency_balances)(last_irreversible_block) )
 
-FC_REFLECT( zmqplugin::zmq_transaction_receipt,
-            (trx_id)(status)(istatus) )
-
 FC_REFLECT( zmqplugin::zmq_irreversible_block_object,
             (irreversible_block_num)(irreversible_block_digest) )
 
@@ -641,3 +645,6 @@ FC_REFLECT( zmqplugin::zmq_fork_block_object,
 
 FC_REFLECT( zmqplugin::zmq_accepted_block_object,
             (accepted_block_num)(accepted_block_digest) )
+
+FC_REFLECT( zmqplugin::zmq_failed_transaction_object,
+            (trx_id)(block_num)(status_name)(status_int) )
