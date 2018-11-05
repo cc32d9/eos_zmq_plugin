@@ -35,23 +35,17 @@ namespace zmqplugin {
       account_name payer;
       account_name receiver;
       uint32_t bytes;
-      static account_name get_account() {return config::system_account_name;}
-      static action_name get_name() {return N(buyrambytes);}
     };
 
     struct buyram {
       account_name payer;
       account_name receiver;
       asset quant;
-      static account_name get_account() {return config::system_account_name;}
-      static action_name get_name() {return N(buyram);}
     };
 
     struct sellram {
       account_name account;
       uint64_t bytes;
-      static account_name get_account() {return config::system_account_name;}
-      static action_name get_name() {return N(sellram);}
     };
 
     struct delegatebw {
@@ -60,8 +54,6 @@ namespace zmqplugin {
       asset stake_net_quantity;
       asset stake_cpu_quantity;
       bool transfer;
-      static account_name get_account() {return config::system_account_name;}
-      static action_name get_name() {return N(delegatebw);}
     };
 
     struct undelegatebw {
@@ -69,14 +61,10 @@ namespace zmqplugin {
       account_name receiver;
       asset unstake_net_quantity;
       asset unstake_cpu_quantity;
-      static account_name get_account() {return config::system_account_name;}
-      static action_name get_name() {return N(undelegatebw);}
     };
 
     struct refund {
       account_name owner;
-      static account_name get_account() {return config::system_account_name;}
-      static action_name get_name() {return N(refund);}
     };
 
     struct regproducer {
@@ -84,35 +72,25 @@ namespace zmqplugin {
       public_key_type producer_key;
       string url;
       uint16_t location;
-      static account_name get_account() {return config::system_account_name;}
-      static action_name get_name() {return N(regproducer);}
     };
 
     struct unregprod {
       account_name producer;
-      static account_name get_account() {return config::system_account_name;}
-      static action_name get_name() {return N(unregprod);}
     };
 
     struct regproxy {
       account_name proxy;
       bool isproxy;
-      static account_name get_account() {return config::system_account_name;}
-      static action_name get_name() {return N(regproxy);}
     };
 
     struct voteproducer {
       account_name voter;
       account_name proxy;
       std::vector<account_name> producers;
-      static account_name get_account() {return config::system_account_name;}
-      static action_name get_name() {return N(voteproducer);}
     };
 
     struct claimrewards {
       account_name owner;
-      static account_name get_account() {return config::system_account_name;}
-      static action_name get_name() {return N(claimrewards);}
     };
   }
 
@@ -435,49 +413,49 @@ namespace eosio {
         switch((uint64_t) at.act.name) {
         case N(newaccount):
           {
-            const auto data = at.act.data_as<chain::newaccount>();
+            const auto data = fc::raw::unpack<chain::newaccount>(at.act.data);
             accounts.insert(data.name);
           }
           break;
         case N(setcode):
           {
-            const auto data = at.act.data_as<chain::setcode>();
+            const auto data = fc::raw::unpack<chain::setcode>(at.act.data);
             accounts.insert(data.account);
           }
           break;
         case N(setabi):
           {
-            const auto data = at.act.data_as<chain::setabi>();
+            const auto data = fc::raw::unpack<chain::setabi>(at.act.data);
             accounts.insert(data.account);
           }
           break;
         case N(updateauth):
           {
-            const auto data = at.act.data_as<chain::updateauth>();
+            const auto data = fc::raw::unpack<chain::updateauth>(at.act.data);
             accounts.insert(data.account);
           }
           break;
         case N(deleteauth):
           {
-            const auto data = at.act.data_as<chain::deleteauth>();
+            const auto data = fc::raw::unpack<chain::deleteauth>(at.act.data);
             accounts.insert(data.account);
           }
           break;
         case N(linkauth):
           {
-            const auto data = at.act.data_as<chain::linkauth>();
+            const auto data = fc::raw::unpack<chain::linkauth>(at.act.data);  
             accounts.insert(data.account);
           }
           break;
         case N(unlinkauth):
           {
-            const auto data = at.act.data_as<chain::unlinkauth>();
+            const auto data = fc::raw::unpack<chain::unlinkauth>(at.act.data);  
             accounts.insert(data.account);
           }
           break;
         case N(buyrambytes):
           {
-            const auto data = at.act.data_as<zmqplugin::syscontract::buyrambytes>();
+            const auto data = fc::raw::unpack<zmqplugin::syscontract::buyrambytes>(at.act.data);  
             accounts.insert(data.payer);
             if( data.receiver != data.payer ) {
               accounts.insert(data.receiver);
@@ -486,7 +464,7 @@ namespace eosio {
           break;
         case N(buyram):
           {
-            const auto data = at.act.data_as<zmqplugin::syscontract::buyram>();
+            const auto data = fc::raw::unpack<zmqplugin::syscontract::buyram>(at.act.data);  
             accounts.insert(data.payer);
             if( data.receiver != data.payer ) {
               accounts.insert(data.receiver);
@@ -495,13 +473,13 @@ namespace eosio {
           break;
         case N(sellram):
           {
-            const auto data = at.act.data_as<zmqplugin::syscontract::sellram>();
+            const auto data = fc::raw::unpack<zmqplugin::syscontract::sellram>(at.act.data);  
             accounts.insert(data.account);
           }
           break;
         case N(delegatebw):
           {
-            const auto data = at.act.data_as<zmqplugin::syscontract::delegatebw>();
+            const auto data = fc::raw::unpack<zmqplugin::syscontract::delegatebw>(at.act.data);  
             accounts.insert(data.from);
             if( data.receiver != data.from ) {
               accounts.insert(data.receiver);
@@ -510,7 +488,7 @@ namespace eosio {
           break;
         case N(undelegatebw):
           {
-            const auto data = at.act.data_as<zmqplugin::syscontract::undelegatebw>();
+            const auto data = fc::raw::unpack<zmqplugin::syscontract::undelegatebw>(at.act.data);  
             accounts.insert(data.from);
             if( data.receiver != data.from ) {
               accounts.insert(data.receiver);
@@ -519,13 +497,13 @@ namespace eosio {
           break;
         case N(refund):
           {
-            const auto data = at.act.data_as<zmqplugin::syscontract::refund>();
+            const auto data = fc::raw::unpack<zmqplugin::syscontract::refund>(at.act.data);  
             accounts.insert(data.owner);
           }
           break;
         case N(regproducer):
           {
-            const auto data = at.act.data_as<zmqplugin::syscontract::regproducer>();
+            const auto data = fc::raw::unpack<zmqplugin::syscontract::regproducer>(at.act.data);  
             accounts.insert(data.producer);
           }
           break;
@@ -536,19 +514,19 @@ namespace eosio {
           break;
         case N(unregprod):
           {
-            const auto data = at.act.data_as<zmqplugin::syscontract::unregprod>();
+            const auto data = fc::raw::unpack<zmqplugin::syscontract::unregprod>(at.act.data);  
             accounts.insert(data.producer);
           }
           break;
         case N(regproxy):
           {
-            const auto data = at.act.data_as<zmqplugin::syscontract::regproxy>();
+            const auto data = fc::raw::unpack<zmqplugin::syscontract::regproxy>(at.act.data);  
             accounts.insert(data.proxy);
           }
           break;
         case N(voteproducer):
           {
-            const auto data = at.act.data_as<zmqplugin::syscontract::voteproducer>();
+            const auto data = fc::raw::unpack<zmqplugin::syscontract::voteproducer>(at.act.data);  
             accounts.insert(data.voter);
             if( data.proxy ) {
               accounts.insert(data.proxy);
@@ -558,7 +536,7 @@ namespace eosio {
           break;
         case N(claimrewards):
           {
-            const auto data = at.act.data_as<zmqplugin::syscontract::claimrewards>();
+            const auto data = fc::raw::unpack<zmqplugin::syscontract::claimrewards>(at.act.data);  
             accounts.insert(data.owner);
           }
           break;
