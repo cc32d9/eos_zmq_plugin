@@ -116,6 +116,29 @@ namespace zmqplugin {
     };
   }
 
+  namespace token {
+    struct transfer {
+      account_name from;
+      account_name to;
+      asset quantity;
+      string memo;
+    };
+
+    struct issue {
+      account_name to;
+      asset quantity;
+      string memo;
+    };
+
+    struct open {
+      account_name owner;
+      symbol symbol;
+      account_name ram_payer;
+    };
+  }
+
+  typedef std::map<account_name,std::map<symbol,std::set<account_name>>> assetmoves;
+
   struct resource_balance {
     name                       account_name;
     int64_t                    ram_quota  = 0;
@@ -130,6 +153,7 @@ namespace zmqplugin {
     name                       account_name;
     name                       contract;
     asset                      balance;
+    bool                       deleted = false;
   };
 
   struct zmq_action_object {
@@ -251,7 +275,7 @@ namespace eosio {
         zabo.accepted_block_digest = block_state->block->digest();
         send_msg(fc::json::to_string(zabo), MSGTYPE_ACCEPTED_BLOCK, 0);
       }
-      
+
       for (auto& r : block_state->block->transactions) {
         transaction_id_type id;
         if (r.trx.contains<transaction_id_type>()) {
@@ -260,7 +284,7 @@ namespace eosio {
         else {
           id = r.trx.get<packed_transaction>().id();
         }
-        
+
         if( r.status == transaction_receipt_header::executed ) {
           // Send traces only for executed transactions
           auto it = cached_traces.find(id);
@@ -280,7 +304,7 @@ namespace eosio {
           zfto.block_num = block_num;
           zfto.status_name = r.status;
           zfto.status_int = static_cast<uint8_t>(r.status);
-          send_msg(fc::json::to_string(zfto), MSGTYPE_FAILED_TX, 0);          
+          send_msg(fc::json::to_string(zfto), MSGTYPE_FAILED_TX, 0);
         }
       }
 
@@ -308,16 +332,70 @@ namespace eosio {
       zao.action_trace = chain.to_variant_with_abi(at, abi_serializer_max_time);
 
       std::set<name> accounts;
-      std::set<name> token_contracts;
+      assetmoves asset_moves;
 
-      find_accounts_and_tokens(at, accounts, token_contracts);
+      find_accounts_and_tokens(at, accounts, asset_moves);
 
-      for (auto it = accounts.begin(); it != accounts.end(); ++it) {
-        name account_name = *it;
+      const auto& rm = chain.get_resource_limits_manager();
+
+      // populatte resource_balances
+      for (auto accit = accounts.begin(); accit != accounts.end(); ++accit) {
+        name account_name = *accit;
         if( is_account_of_interest(account_name) ) {
-          add_account_resource( zao, account_name );
-          for (auto it2 = token_contracts.begin(); it2 != token_contracts.end(); ++it2) {
-            add_currency_balances( zao, account_name, *it2 );
+          resource_balance bal;
+          bal.account_name = account_name;
+          rm.get_account_limits( account_name, bal.ram_quota, bal.net_weight, bal.cpu_weight );
+          bool grelisted = chain.is_resource_greylisted(account_name);
+          bal.net_limit = rm.get_account_net_limit_ex( account_name, !grelisted);
+          bal.cpu_limit = rm.get_account_cpu_limit_ex( account_name, !grelisted);
+          bal.ram_usage = rm.get_account_ram_usage( account_name );
+          zao.resource_balances.emplace_back(bal);
+        }
+      }
+
+      const auto& db = chain.db();
+      const auto &idx = db.get_index<key_value_index, by_scope_primary>();
+
+      // populate token balances
+      for (auto ctrit = asset_moves.begin(); ctrit != asset_moves.end(); ++ctrit) {
+        account_name token_code = ctrit->first;
+        for (auto symit = ctrit->second.begin(); symit != ctrit->second.end(); ++symit) {
+          symbol sym = symit->first;
+          uint64_t symcode = sym.to_symbol_code().value;
+          // check if this is a valid doken contract
+          const auto* stat_t_id = db.find<chain::table_id_object, chain::by_code_scope_table>
+            (boost::make_tuple( token_code, symcode, N(stat) ));
+          if( stat_t_id != nullptr ) {
+            auto statit = idx.find(boost::make_tuple( stat_t_id->id, symcode ));
+            if ( statit != idx.end() ) {
+              // found the currency in stat table, assuming this is a valid token
+              // get the balance for evey accout
+              for( auto accitr = symit->second.begin(); accitr != symit->second.end(); ++accitr ) {
+                account_name account_name = *accitr;
+                if( is_account_of_interest(account_name) ) {
+                  bool found = false;
+                  const auto* balance_t_id = db.find<chain::table_id_object, chain::by_code_scope_table>
+                    (boost::make_tuple( token_code, account_name, N(accounts) ));
+                  if( balance_t_id != nullptr ) {
+                    auto bal_entry = idx.find(boost::make_tuple( balance_t_id->id, symcode ));
+                    if ( bal_entry != idx.end() ) {
+                      found = true;
+                      asset bal;
+                      fc::datastream<const char *> ds(bal_entry->value.data(), bal_entry->value.size());
+                      fc::raw::unpack(ds, bal);
+                      if( bal.get_symbol().valid() ) {
+                        zao.currency_balances.emplace_back(currency_balance{account_name, token_code, bal});
+                      }
+                    }
+                  }
+                  
+                  if( !found ) {
+                    // assume the balance was emptied and the table entry was deleted
+                    zao.currency_balances.emplace_back(currency_balance{account_name, token_code, asset(0, sym), true});
+                  }
+                }
+              }
+            }
           }
         }
       }
@@ -336,9 +414,16 @@ namespace eosio {
     }
 
 
+    void inline add_asset_move(assetmoves& asset_moves, account_name contract,
+                               symbol symbol, account_name owner)
+    {
+      asset_moves[contract][symbol].insert(owner);
+    }
+
+
     void find_accounts_and_tokens(const action_trace& at,
                                   std::set<name>& accounts,
-                                  std::set<name>& token_contracts)
+                                  assetmoves& asset_moves)
     {
       accounts.insert(at.act.account);
 
@@ -479,12 +564,40 @@ namespace eosio {
           break;
         }
       }
-      else if( at.act.name == N(transfer) || at.act.name == N(issue) || at.act.name == N(open) ) {
-        token_contracts.insert(at.act.account);
-      }
+      else {
+        switch((uint64_t) at.act.name) {
+        case N(transfer):
+          {
+            const auto data = fc::raw::unpack<zmqplugin::token::transfer>(at.act.data);
+            symbol s = data.quantity.get_symbol();
+            if( s.valid() ) {
+              add_asset_move(asset_moves, at.act.account, s, data.from);
+              add_asset_move(asset_moves, at.act.account, s, data.to);
+            }
+          }
+          break;
+        case N(issue):
+          {
+            const auto data = fc::raw::unpack<zmqplugin::token::issue>(at.act.data);
+            symbol s = data.quantity.get_symbol();
+            if( s.valid() ) {
+              add_asset_move(asset_moves, at.act.account, s, data.to);
+            }
+          }
+          break;
+        case N(open):
+          {
+            const auto data = fc::raw::unpack<zmqplugin::token::open>(at.act.data);
+            if( data.symbol.valid() ) {
+              add_asset_move(asset_moves, at.act.account, data.symbol, data.owner);
+            }
+          }
+          break;
+        }
 
-      for( const auto& iline : at.inline_traces ) {
-        find_accounts_and_tokens( iline, accounts, token_contracts );
+        for( const auto& iline : at.inline_traces ) {
+          find_accounts_and_tokens( iline, accounts, asset_moves );
+        }
       }
     }
 
@@ -496,49 +609,6 @@ namespace eosio {
       }
       return true;
     }
-
-    void add_account_resource( zmq_action_object& zao, name account_name )
-    {
-      resource_balance bal;
-      bal.account_name = account_name;
-
-      auto& chain = chain_plug->chain();
-      const auto& rm = chain.get_resource_limits_manager();
-
-      rm.get_account_limits( account_name, bal.ram_quota, bal.net_weight, bal.cpu_weight );
-      bool grelisted = chain.is_resource_greylisted(account_name);
-      bal.net_limit = rm.get_account_net_limit_ex( account_name, !grelisted);
-      bal.cpu_limit = rm.get_account_cpu_limit_ex( account_name, !grelisted);
-      bal.ram_usage = rm.get_account_ram_usage( account_name );
-      zao.resource_balances.emplace_back(bal);
-    }
-
-    void add_currency_balances( zmq_action_object& zao,
-                                name account_name, name token_code )
-    {
-      const auto& chain = chain_plug->chain();
-      const auto& db = chain.db();
-
-      const auto* t_id = db.find<chain::table_id_object, chain::by_code_scope_table>
-        (boost::make_tuple( token_code, account_name, N(accounts) ));
-      if( t_id != nullptr ) {
-          const auto &idx = db.get_index<key_value_index, by_scope_primary>();
-          decltype(t_id->id) next_tid(t_id->id._id + 1);
-          auto lower = idx.lower_bound(boost::make_tuple(t_id->id));
-          auto upper = idx.lower_bound(boost::make_tuple(next_tid));
-
-          for (auto obj = lower; obj != upper; ++obj) {
-            if( obj->value.size() >= sizeof(asset) ) {
-              asset bal;
-              fc::datastream<const char *> ds(obj->value.data(), obj->value.size());
-              fc::raw::unpack(ds, bal);
-              if( bal.get_symbol().valid() ) {
-                zao.currency_balances.emplace_back(currency_balance{account_name, token_code, bal});
-              }
-            }
-          }
-      }
-    }
   };
 
 
@@ -549,8 +619,7 @@ namespace eosio {
   {
     cfg.add_options()
       (SENDER_BIND, bpo::value<string>()->default_value(SENDER_BIND_DEFAULT),
-       "ZMQ Sender Socket binding")
-      ;
+       "ZMQ Sender Socket binding");
   }
 
   void zmq_plugin::plugin_initialize(const variables_map& options)
@@ -583,7 +652,6 @@ namespace eosio {
   }
 
   void zmq_plugin::plugin_startup() {
-
   }
 
   void zmq_plugin::plugin_shutdown() {
@@ -627,11 +695,20 @@ FC_REFLECT( zmqplugin::syscontract::voteproducer,
 FC_REFLECT( zmqplugin::syscontract::claimrewards,
             (owner) )
 
+FC_REFLECT( zmqplugin::token::transfer,
+            (from)(to)(quantity)(memo) )
+
+FC_REFLECT( zmqplugin::token::issue,
+            (to)(quantity)(memo) )
+
+FC_REFLECT( zmqplugin::token::open,
+            (owner)(symbol)(ram_payer) )
+
 FC_REFLECT( zmqplugin::resource_balance,
             (account_name)(ram_quota)(ram_usage)(net_weight)(cpu_weight)(net_limit)(cpu_limit) )
 
 FC_REFLECT( zmqplugin::currency_balance,
-            (account_name)(contract)(balance))
+            (account_name)(contract)(balance)(deleted))
 
 FC_REFLECT( zmqplugin::zmq_action_object,
             (global_action_seq)(block_num)(block_time)(action_trace)
