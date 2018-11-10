@@ -155,6 +155,7 @@ namespace zmqplugin {
 
   struct zmq_accepted_block_object {
     block_num_type               accepted_block_num;
+    block_timestamp_type         accepted_block_timestamp;
     digest_type                  accepted_block_digest;
   };
 
@@ -250,6 +251,7 @@ namespace eosio {
       {
         zmq_accepted_block_object zabo;
         zabo.accepted_block_num = block_num;
+        zabo.accepted_block_timestamp = block_state->block->timestamp;
         zabo.accepted_block_digest = block_state->block->digest();
         send_msg(fc::json::to_string(zabo), MSGTYPE_ACCEPTED_BLOCK, 0);
       }
@@ -699,7 +701,7 @@ FC_REFLECT( zmqplugin::zmq_fork_block_object,
             (invalid_block_num) )
 
 FC_REFLECT( zmqplugin::zmq_accepted_block_object,
-            (accepted_block_num)(accepted_block_digest) )
+            (accepted_block_num)(accepted_block_timestamp)(accepted_block_digest) )
 
 FC_REFLECT( zmqplugin::zmq_failed_transaction_object,
             (trx_id)(block_num)(status_name)(status_int) )
