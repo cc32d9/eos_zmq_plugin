@@ -157,6 +157,7 @@ namespace zmqplugin {
     block_num_type               accepted_block_num;
     block_timestamp_type         accepted_block_timestamp;
     digest_type                  accepted_block_digest;
+    block_id_type                accepted_block_id;
   };
 
   // see status definitions in libraries/chain/include/eosio/chain/block.hpp
@@ -253,6 +254,7 @@ namespace eosio {
         zabo.accepted_block_num = block_num;
         zabo.accepted_block_timestamp = block_state->block->timestamp;
         zabo.accepted_block_digest = block_state->block->digest();
+        zabo.accepted_block_id = block_state->block->id();
         send_msg(fc::json::to_string(zabo), MSGTYPE_ACCEPTED_BLOCK, 0);
       }
 
@@ -368,7 +370,7 @@ namespace eosio {
                       }
                     }
                   }
-                  
+
                   if( !found ) {
                     // assume the balance was emptied and the table entry was deleted
                     zao.currency_balances.emplace_back(currency_balance{account_name, token_code, asset(0, sym), true});
@@ -445,19 +447,19 @@ namespace eosio {
           break;
         case N(linkauth):
           {
-            const auto data = fc::raw::unpack<chain::linkauth>(at.act.data);  
+            const auto data = fc::raw::unpack<chain::linkauth>(at.act.data);
             accounts.insert(data.account);
           }
           break;
         case N(unlinkauth):
           {
-            const auto data = fc::raw::unpack<chain::unlinkauth>(at.act.data);  
+            const auto data = fc::raw::unpack<chain::unlinkauth>(at.act.data);
             accounts.insert(data.account);
           }
           break;
         case N(buyrambytes):
           {
-            const auto data = fc::raw::unpack<zmqplugin::syscontract::buyrambytes>(at.act.data);  
+            const auto data = fc::raw::unpack<zmqplugin::syscontract::buyrambytes>(at.act.data);
             accounts.insert(data.payer);
             if( data.receiver != data.payer ) {
               accounts.insert(data.receiver);
@@ -466,7 +468,7 @@ namespace eosio {
           break;
         case N(buyram):
           {
-            const auto data = fc::raw::unpack<zmqplugin::syscontract::buyram>(at.act.data);  
+            const auto data = fc::raw::unpack<zmqplugin::syscontract::buyram>(at.act.data);
             accounts.insert(data.payer);
             if( data.receiver != data.payer ) {
               accounts.insert(data.receiver);
@@ -475,13 +477,13 @@ namespace eosio {
           break;
         case N(sellram):
           {
-            const auto data = fc::raw::unpack<zmqplugin::syscontract::sellram>(at.act.data);  
+            const auto data = fc::raw::unpack<zmqplugin::syscontract::sellram>(at.act.data);
             accounts.insert(data.account);
           }
           break;
         case N(delegatebw):
           {
-            const auto data = fc::raw::unpack<zmqplugin::syscontract::delegatebw>(at.act.data);  
+            const auto data = fc::raw::unpack<zmqplugin::syscontract::delegatebw>(at.act.data);
             accounts.insert(data.from);
             if( data.receiver != data.from ) {
               accounts.insert(data.receiver);
@@ -490,7 +492,7 @@ namespace eosio {
           break;
         case N(undelegatebw):
           {
-            const auto data = fc::raw::unpack<zmqplugin::syscontract::undelegatebw>(at.act.data);  
+            const auto data = fc::raw::unpack<zmqplugin::syscontract::undelegatebw>(at.act.data);
             accounts.insert(data.from);
             if( data.receiver != data.from ) {
               accounts.insert(data.receiver);
@@ -499,13 +501,13 @@ namespace eosio {
           break;
         case N(refund):
           {
-            const auto data = fc::raw::unpack<zmqplugin::syscontract::refund>(at.act.data);  
+            const auto data = fc::raw::unpack<zmqplugin::syscontract::refund>(at.act.data);
             accounts.insert(data.owner);
           }
           break;
         case N(regproducer):
           {
-            const auto data = fc::raw::unpack<zmqplugin::syscontract::regproducer>(at.act.data);  
+            const auto data = fc::raw::unpack<zmqplugin::syscontract::regproducer>(at.act.data);
             accounts.insert(data.producer);
           }
           break;
@@ -516,19 +518,19 @@ namespace eosio {
           break;
         case N(unregprod):
           {
-            const auto data = fc::raw::unpack<zmqplugin::syscontract::unregprod>(at.act.data);  
+            const auto data = fc::raw::unpack<zmqplugin::syscontract::unregprod>(at.act.data);
             accounts.insert(data.producer);
           }
           break;
         case N(regproxy):
           {
-            const auto data = fc::raw::unpack<zmqplugin::syscontract::regproxy>(at.act.data);  
+            const auto data = fc::raw::unpack<zmqplugin::syscontract::regproxy>(at.act.data);
             accounts.insert(data.proxy);
           }
           break;
         case N(voteproducer):
           {
-            const auto data = fc::raw::unpack<zmqplugin::syscontract::voteproducer>(at.act.data);  
+            const auto data = fc::raw::unpack<zmqplugin::syscontract::voteproducer>(at.act.data);
             accounts.insert(data.voter);
             if( data.proxy ) {
               accounts.insert(data.proxy);
@@ -538,7 +540,7 @@ namespace eosio {
           break;
         case N(claimrewards):
           {
-            const auto data = fc::raw::unpack<zmqplugin::syscontract::claimrewards>(at.act.data);  
+            const auto data = fc::raw::unpack<zmqplugin::syscontract::claimrewards>(at.act.data);
             accounts.insert(data.owner);
           }
           break;
@@ -701,7 +703,7 @@ FC_REFLECT( zmqplugin::zmq_fork_block_object,
             (invalid_block_num) )
 
 FC_REFLECT( zmqplugin::zmq_accepted_block_object,
-            (accepted_block_num)(accepted_block_timestamp)(accepted_block_digest) )
+            (accepted_block_num)(accepted_block_timestamp)(accepted_block_digest)(accepted_block_id) )
 
 FC_REFLECT( zmqplugin::zmq_failed_transaction_object,
             (trx_id)(block_num)(status_name)(status_int) )
