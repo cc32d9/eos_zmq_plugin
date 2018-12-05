@@ -544,42 +544,42 @@ namespace eosio {
           break;
         }
       }
-      else {
-        switch((uint64_t) at.act.name) {
-        case N(transfer):
-          {
-            const auto data = fc::raw::unpack<zmqplugin::token::transfer>(at.act.data);
-            symbol s = data.quantity.get_symbol();
-            if( s.valid() ) {
-              add_asset_move(asset_moves, at.act.account, s, data.from);
-              add_asset_move(asset_moves, at.act.account, s, data.to);
-            }
+      
+      switch((uint64_t) at.act.name) {
+      case N(transfer):
+        {
+          const auto data = fc::raw::unpack<zmqplugin::token::transfer>(at.act.data);
+          symbol s = data.quantity.get_symbol();
+          if( s.valid() ) {
+            add_asset_move(asset_moves, at.act.account, s, data.from);
+            add_asset_move(asset_moves, at.act.account, s, data.to);
           }
-          break;
-        case N(issue):
-          {
-            const auto data = fc::raw::unpack<zmqplugin::token::issue>(at.act.data);
-            symbol s = data.quantity.get_symbol();
-            if( s.valid() ) {
-              add_asset_move(asset_moves, at.act.account, s, data.to);
-            }
-          }
-          break;
-        case N(open):
-          {
-            const auto data = fc::raw::unpack<zmqplugin::token::open>(at.act.data);
-            if( data.symbol.valid() ) {
-              add_asset_move(asset_moves, at.act.account, data.symbol, data.owner);
-            }
-          }
-          break;
         }
+        break;
+      case N(issue):
+        {
+          const auto data = fc::raw::unpack<zmqplugin::token::issue>(at.act.data);
+          symbol s = data.quantity.get_symbol();
+          if( s.valid() ) {
+            add_asset_move(asset_moves, at.act.account, s, data.to);
+          }
+        }
+        break;
+      case N(open):
+        {
+          const auto data = fc::raw::unpack<zmqplugin::token::open>(at.act.data);
+          if( data.symbol.valid() ) {
+            add_asset_move(asset_moves, at.act.account, data.symbol, data.owner);
+          }
+        }
+        break;
+      }
 
-        for( const auto& iline : at.inline_traces ) {
-          find_accounts_and_tokens( iline, accounts, asset_moves );
-        }
+      for( const auto& iline : at.inline_traces ) {
+        find_accounts_and_tokens( iline, accounts, asset_moves );
       }
     }
+    
 
     bool is_account_of_interest(name account_name)
     {
