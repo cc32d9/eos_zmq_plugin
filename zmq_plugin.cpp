@@ -14,8 +14,10 @@
 #include <eosio/chain_plugin/chain_plugin.hpp>
 
 namespace {
-  const char* SENDER_BIND = "zmq-sender-bind";
+  const char* SENDER_BIND_OPT = "zmq-sender-bind";
   const char* SENDER_BIND_DEFAULT = "tcp://127.0.0.1:5556";
+  const char* WHITELIST_OPT = "zmq-whitelist-contract";
+  
   const int32_t MSGTYPE_ACTION_TRACE = 0;
   const int32_t MSGTYPE_IRREVERSIBLE_BLOCK = 1;
   const int32_t MSGTYPE_FORK = 2;
@@ -186,7 +188,10 @@ namespace eosio {
     std::set<name>         system_accounts;
     std::map<name,std::set<name>>  blacklist_actions;
     std::map<transaction_id_type, transaction_trace_ptr> cached_traces;
-    uint32_t _end_block = 0;
+    uint32_t               _end_block = 0;
+    
+    bool                   use_whitelist = false;
+    std::set<name>         whitelist_contracts;
 
     fc::optional<scoped_connection> applied_transaction_connection;
     fc::optional<scoped_connection> accepted_block_connection;
@@ -294,11 +299,17 @@ namespace eosio {
 
     void on_action_trace( const action_trace& at, const block_state_ptr& block_state )
     {
+      if( use_whitelist ) {
+        // only allow accounts from whitelist
+        if( whitelist_contracts.count(at.act.account) == 0 ) {
+          return;
+        }
+      }
+        
       // check the action against the blacklist
       auto search_acc = blacklist_actions.find(at.act.account);
       if(search_acc != blacklist_actions.end()) {
-        auto search_act = search_acc->second.find(at.act.name);
-        if( search_act != search_acc->second.end() ) {
+        if( search_acc->second.count(at.act.name) != 0 ) {
           return;
         }
       }
@@ -598,18 +609,29 @@ namespace eosio {
   void zmq_plugin::set_program_options(options_description&, options_description& cfg)
   {
     cfg.add_options()
-      (SENDER_BIND, bpo::value<string>()->default_value(SENDER_BIND_DEFAULT),
+      (SENDER_BIND_OPT, bpo::value<string>()->default_value(SENDER_BIND_DEFAULT),
        "ZMQ Sender Socket binding");
+    cfg.add_options()
+      (WHITELIST_OPT, bpo::value<vector<string>>()->composing(),
+       "ZMQ plugin whitelist of contracts to track");
   }
 
   void zmq_plugin::plugin_initialize(const variables_map& options)
   {
-    my->socket_bind_str = options.at(SENDER_BIND).as<string>();
+    my->socket_bind_str = options.at(SENDER_BIND_OPT).as<string>();
     if (my->socket_bind_str.empty()) {
       wlog("zmq-sender-bind not specified => eosio::zmq_plugin disabled.");
       return;
     }
 
+    if( options.count(WHITELIST_OPT) > 0 ) {
+      my->use_whitelist = true;
+      auto whl = options.at(WHITELIST_OPT).as<vector<string>>();
+      for( auto& whlname: whl ) {
+        my->whitelist_contracts.insert(eosio::name(whlname));
+      }
+    }
+    
     ilog("Binding to ZMQ PUSH socket ${u}", ("u", my->socket_bind_str));
     my->sender_socket.bind(my->socket_bind_str);
 
