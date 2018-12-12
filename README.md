@@ -72,11 +72,44 @@ history plugin.
 
 The JSON data is a map with the following fields:
 
-1. `block_num`: irreversible block number.
+1. `irreversible_block_num`: irreversible block number.
 
-2. `transactions`: array of transaction identifiers and their statuses
-   in maps as follows: `trx_id` with transaction ID string, `status`
-   with symbolic status, and `istatus` with numeric status.
+2. `irreversible_block_digest`: block hash.
+ 
+
+## JSON data format (fork, msgtype=2)
+
+The JSON data is a map with the following fields:
+
+1. `invalid_block_num`: block number where fork happened. All blocks
+with higher or equal numbers should be discarded.
+
+
+## JSON data format (accepted block, msgtype=3)
+
+This event is pushed to the ZMQ socket preceeding transaction traces
+belonging to the block. The JSON data is a map with the following
+fields:
+
+1. `accepted_block_num`: block number.
+
+2. `accepted_block_timestamp`: block timestamp.
+
+3. `accepted_block_digest`: block hash.
+
+
+
+## JSON data format (failed transaction, msgtype=4)
+
+The event is generated on every failed transaction, with the following
+map structure:
+
+1. `trx_id`: transaction ID.
+
+2. `block_num`: block number;
+
+3. `status_name`, `status_int`: textual and numeric representation of
+the failure status.
 
 Transaction status values are defined in
 "libraries/chain/include/eosio/chain/block.hpp" in EOS suite as follows:
@@ -90,8 +123,6 @@ Transaction status values are defined in
          expired   = 4  ///< transaction expired and storage space refuned to user
       };
 ```
- 
-
 
 
 
