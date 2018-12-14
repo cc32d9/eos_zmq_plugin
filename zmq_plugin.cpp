@@ -192,6 +192,7 @@ namespace eosio {
     
     bool                   use_whitelist = false;
     std::set<name>         whitelist_contracts;
+    bool                   whitelist_matched;
 
     fc::optional<scoped_connection> applied_transaction_connection;
     fc::optional<scoped_connection> accepted_block_connection;
@@ -299,12 +300,7 @@ namespace eosio {
 
     void on_action_trace( const action_trace& at, const block_state_ptr& block_state )
     {
-      if( use_whitelist ) {
-        // only allow accounts from whitelist
-        if( whitelist_contracts.count(at.act.account) == 0 ) {
-          return;
-        }
-      }
+      whitelist_matched = false;
         
       // check the action against the blacklist
       auto search_acc = blacklist_actions.find(at.act.account);
@@ -327,6 +323,9 @@ namespace eosio {
 
       find_accounts_and_tokens(at, accounts, asset_moves);
 
+      if( use_whitelist && !whitelist_matched )
+        return;
+      
       const auto& rm = chain.get_resource_limits_manager();
 
       // populatte resource_balances
@@ -412,10 +411,14 @@ namespace eosio {
     }
 
 
+    
     void find_accounts_and_tokens(const action_trace& at,
                                   std::set<name>& accounts,
                                   assetmoves& asset_moves)
     {
+      if( use_whitelist && !whitelist_matched && whitelist_contracts.count(at.act.account) > 0 )
+        whitelist_matched = true;
+      
       accounts.insert(at.act.account);
 
       if( at.receipt.receiver != at.act.account ) {
