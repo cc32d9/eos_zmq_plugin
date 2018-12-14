@@ -135,9 +135,12 @@ The following configuration statements in `config.ini` are recognized:
 * `zmq-sender-bind = ENDPOINT` -- specifies the PUSH socket binding
   endpoint. Default value: `tcp://127.0.0.1:5556`.
 
-* `zmq-whitelist-contract = ACCOUNT` -- sets up a whitelist, so that
-  only traces for specified accounts are exported. Multiple options
-  define multiple accounts to trace.
+* `zmq-whitelist-account = ACCOUNT` -- sets up a whitelist, so that only
+  traces for specified accounts are exported. Multiple options define
+  multiple accounts to trace. If the account is a contract, all its
+  actions (including inline actions) are exported. Also all transfers to
+  and from the account, system actions, and third-party notifications
+  are triggering the trace export.
 
 
 

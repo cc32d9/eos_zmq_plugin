@@ -16,7 +16,7 @@
 namespace {
   const char* SENDER_BIND_OPT = "zmq-sender-bind";
   const char* SENDER_BIND_DEFAULT = "tcp://127.0.0.1:5556";
-  const char* WHITELIST_OPT = "zmq-whitelist-contract";
+  const char* WHITELIST_OPT = "zmq-whitelist-account";
   
   const int32_t MSGTYPE_ACTION_TRACE = 0;
   const int32_t MSGTYPE_IRREVERSIBLE_BLOCK = 1;
@@ -323,9 +323,15 @@ namespace eosio {
 
       find_accounts_and_tokens(at, accounts, asset_moves);
 
-      if( use_whitelist && !whitelist_matched )
-        return;
-      
+      if( use_whitelist && !whitelist_matched ) {
+        for (auto accit = accounts.begin(); !whitelist_matched && accit != accounts.end(); ++accit) {
+          check_whitelist(*accit);
+        }
+
+        if( !whitelist_matched )
+          return;
+      }
+        
       const auto& rm = chain.get_resource_limits_manager();
 
       // populatte resource_balances
@@ -408,17 +414,21 @@ namespace eosio {
                                symbol symbol, account_name owner)
     {
       asset_moves[contract][symbol].insert(owner);
+      check_whitelist(owner);
     }
 
+
+    void inline check_whitelist(account_name account)
+    {
+      if( use_whitelist && !whitelist_matched && whitelist_contracts.count(account) > 0 )
+        whitelist_matched = true;
+    }
 
     
     void find_accounts_and_tokens(const action_trace& at,
                                   std::set<name>& accounts,
                                   assetmoves& asset_moves)
-    {
-      if( use_whitelist && !whitelist_matched && whitelist_contracts.count(at.act.account) > 0 )
-        whitelist_matched = true;
-      
+    {      
       accounts.insert(at.act.account);
 
       if( at.receipt.receiver != at.act.account ) {
