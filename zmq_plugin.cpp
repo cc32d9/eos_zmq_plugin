@@ -158,6 +158,7 @@ namespace zmqplugin {
   struct zmq_accepted_block_object {
     block_num_type               accepted_block_num;
     block_timestamp_type         accepted_block_timestamp;
+    account_name                 accepted_block_producer;
     digest_type                  accepted_block_digest;
   };
 
@@ -258,6 +259,7 @@ namespace eosio {
         zmq_accepted_block_object zabo;
         zabo.accepted_block_num = block_num;
         zabo.accepted_block_timestamp = block_state->block->timestamp;
+        zabo.accepted_block_producer = block_state->header.producer;
         zabo.accepted_block_digest = block_state->block->digest();
         send_msg(fc::json::to_string(zabo), MSGTYPE_ACCEPTED_BLOCK, 0);
       }
@@ -334,7 +336,7 @@ namespace eosio {
         
       const auto& rm = chain.get_resource_limits_manager();
 
-      // populatte resource_balances
+      // populate resource_balances
       for (auto accit = accounts.begin(); accit != accounts.end(); ++accit) {
         name account_name = *accit;
         if( is_account_of_interest(account_name) ) {
@@ -358,14 +360,14 @@ namespace eosio {
         for (auto symit = ctrit->second.begin(); symit != ctrit->second.end(); ++symit) {
           symbol sym = symit->first;
           uint64_t symcode = sym.to_symbol_code().value;
-          // check if this is a valid doken contract
+          // check if this is a valid token contract
           const auto* stat_t_id = db.find<chain::table_id_object, chain::by_code_scope_table>
             (boost::make_tuple( token_code, symcode, N(stat) ));
           if( stat_t_id != nullptr ) {
             auto statit = idx.find(boost::make_tuple( stat_t_id->id, symcode ));
             if ( statit != idx.end() ) {
               // found the currency in stat table, assuming this is a valid token
-              // get the balance for evey accout
+              // get the balance for every account
               for( auto accitr = symit->second.begin(); accitr != symit->second.end(); ++accitr ) {
                 account_name account_name = *accitr;
                 if( is_account_of_interest(account_name) ) {
@@ -557,7 +559,7 @@ namespace eosio {
             if( data.proxy ) {
               accounts.insert(data.proxy);
             }
-            // not including the producrs list, although some projects may need it
+            // not including producers list, although some projects may need it
           }
           break;
         case N(claimrewards):
@@ -736,7 +738,7 @@ FC_REFLECT( zmqplugin::zmq_fork_block_object,
             (invalid_block_num) )
 
 FC_REFLECT( zmqplugin::zmq_accepted_block_object,
-            (accepted_block_num)(accepted_block_timestamp)(accepted_block_digest) )
+            (accepted_block_num)(accepted_block_timestamp)(accepted_block_producer)(accepted_block_digest) )
 
 FC_REFLECT( zmqplugin::zmq_failed_transaction_object,
             (trx_id)(block_num)(status_name)(status_int) )
