@@ -95,7 +95,9 @@ fields:
 
 2. `accepted_block_timestamp`: block timestamp.
 
-3. `accepted_block_digest`: block hash.
+3. `accepted_block_producer`: block producer.
+
+4. `accepted_block_digest`: block hash.
 
 
 
