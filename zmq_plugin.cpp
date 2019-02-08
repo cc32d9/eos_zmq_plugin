@@ -437,6 +437,10 @@ namespace eosio {
         accounts.insert(at.receipt.receiver);
       }
 
+      for(permission_level p : at.act.authorization) {
+        accounts.insert(p.actor);
+      }
+
       if( at.act.account == config::system_account_name ) {
         switch((uint64_t) at.act.name) {
         case N(newaccount):
