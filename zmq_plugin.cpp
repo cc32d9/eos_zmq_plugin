@@ -192,7 +192,7 @@ namespace eosio {
     uint32_t               _end_block = 0;
     
     bool                   use_whitelist = false;
-    std::set<name>         whitelist_contracts;
+    std::set<name>         whitelist_accounts;
     bool                   whitelist_matched;
 
     fc::optional<scoped_connection> applied_transaction_connection;
@@ -422,7 +422,7 @@ namespace eosio {
 
     void inline check_whitelist(account_name account)
     {
-      if( use_whitelist && !whitelist_matched && whitelist_contracts.count(account) > 0 )
+      if( use_whitelist && !whitelist_matched && whitelist_accounts.count(account) > 0 )
         whitelist_matched = true;
     }
 
@@ -647,7 +647,7 @@ namespace eosio {
       my->use_whitelist = true;
       auto whl = options.at(WHITELIST_OPT).as<vector<string>>();
       for( auto& whlname: whl ) {
-        my->whitelist_contracts.insert(eosio::name(whlname));
+        my->whitelist_accounts.insert(eosio::name(whlname));
       }
     }
     
