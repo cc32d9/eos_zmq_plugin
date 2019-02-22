@@ -442,169 +442,176 @@ namespace eosio {
         accounts.insert(p.actor);
       }
 
-      if( at.act.account == config::system_account_name ) {
-        switch((uint64_t) at.act.name) {
-        case N(newaccount):
-          {
-            const auto data = fc::raw::unpack<chain::newaccount>(at.act.data);
-            accounts.insert(data.name);
-          }
-          break;
-        case N(setcode):
-          {
-            const auto data = fc::raw::unpack<chain::setcode>(at.act.data);
-            accounts.insert(data.account);
-          }
-          break;
-        case N(setabi):
-          {
-            const auto data = fc::raw::unpack<chain::setabi>(at.act.data);
-            accounts.insert(data.account);
-          }
-          break;
-        case N(updateauth):
-          {
-            const auto data = fc::raw::unpack<chain::updateauth>(at.act.data);
-            accounts.insert(data.account);
-          }
-          break;
-        case N(deleteauth):
-          {
-            const auto data = fc::raw::unpack<chain::deleteauth>(at.act.data);
-            accounts.insert(data.account);
-          }
-          break;
-        case N(linkauth):
-          {
-            const auto data = fc::raw::unpack<chain::linkauth>(at.act.data);
-            accounts.insert(data.account);
-          }
-          break;
-        case N(unlinkauth):
-          {
-            const auto data = fc::raw::unpack<chain::unlinkauth>(at.act.data);
-            accounts.insert(data.account);
-          }
-          break;
-        case N(buyrambytes):
-          {
-            const auto data = fc::raw::unpack<zmqplugin::syscontract::buyrambytes>(at.act.data);
-            accounts.insert(data.payer);
-            if( data.receiver != data.payer ) {
-              accounts.insert(data.receiver);
+      try{
+        if( at.act.account == config::system_account_name ) {
+          switch((uint64_t) at.act.name) {
+          case N(newaccount):
+            {
+              const auto data = fc::raw::unpack<chain::newaccount>(at.act.data);
+              accounts.insert(data.name);
             }
-          }
-          break;
-        case N(buyram):
-          {
-            const auto data = fc::raw::unpack<zmqplugin::syscontract::buyram>(at.act.data);
-            accounts.insert(data.payer);
-            if( data.receiver != data.payer ) {
-              accounts.insert(data.receiver);
+            break;
+          case N(setcode):
+            {
+              const auto data = fc::raw::unpack<chain::setcode>(at.act.data);
+              accounts.insert(data.account);
             }
-          }
-          break;
-        case N(sellram):
-          {
-            const auto data = fc::raw::unpack<zmqplugin::syscontract::sellram>(at.act.data);
-            accounts.insert(data.account);
-          }
-          break;
-        case N(delegatebw):
-          {
-            const auto data = fc::raw::unpack<zmqplugin::syscontract::delegatebw>(at.act.data);
-            accounts.insert(data.from);
-            if( data.receiver != data.from ) {
-              accounts.insert(data.receiver);
+            break;
+          case N(setabi):
+            {
+              const auto data = fc::raw::unpack<chain::setabi>(at.act.data);
+              accounts.insert(data.account);
             }
-          }
-          break;
-        case N(undelegatebw):
-          {
-            const auto data = fc::raw::unpack<zmqplugin::syscontract::undelegatebw>(at.act.data);
-            accounts.insert(data.from);
-            if( data.receiver != data.from ) {
-              accounts.insert(data.receiver);
+            break;
+          case N(updateauth):
+            {
+              const auto data = fc::raw::unpack<chain::updateauth>(at.act.data);
+              accounts.insert(data.account);
             }
-          }
-          break;
-        case N(refund):
-          {
-            const auto data = fc::raw::unpack<zmqplugin::syscontract::refund>(at.act.data);
-            accounts.insert(data.owner);
-          }
-          break;
-        case N(regproducer):
-          {
-            const auto data = fc::raw::unpack<zmqplugin::syscontract::regproducer>(at.act.data);
-            accounts.insert(data.producer);
-          }
-          break;
-        case N(bidname):
-          {
-            // do nothing because newname account does not exist yet
-          }
-          break;
-        case N(unregprod):
-          {
-            const auto data = fc::raw::unpack<zmqplugin::syscontract::unregprod>(at.act.data);
-            accounts.insert(data.producer);
-          }
-          break;
-        case N(regproxy):
-          {
-            const auto data = fc::raw::unpack<zmqplugin::syscontract::regproxy>(at.act.data);
-            accounts.insert(data.proxy);
-          }
-          break;
-        case N(voteproducer):
-          {
-            const auto data = fc::raw::unpack<zmqplugin::syscontract::voteproducer>(at.act.data);
-            accounts.insert(data.voter);
-            if( data.proxy ) {
+            break;
+          case N(deleteauth):
+            {
+              const auto data = fc::raw::unpack<chain::deleteauth>(at.act.data);
+              accounts.insert(data.account);
+            }
+            break;
+          case N(linkauth):
+            {
+              const auto data = fc::raw::unpack<chain::linkauth>(at.act.data);
+              accounts.insert(data.account);
+            }
+            break;
+          case N(unlinkauth):
+            {
+              const auto data = fc::raw::unpack<chain::unlinkauth>(at.act.data);
+              accounts.insert(data.account);
+            }
+            break;
+          case N(buyrambytes):
+            {
+              const auto data = fc::raw::unpack<zmqplugin::syscontract::buyrambytes>(at.act.data);
+              accounts.insert(data.payer);
+              if( data.receiver != data.payer ) {
+                accounts.insert(data.receiver);
+              }
+            }
+            break;
+          case N(buyram):
+            {
+              const auto data = fc::raw::unpack<zmqplugin::syscontract::buyram>(at.act.data);
+              accounts.insert(data.payer);
+              if( data.receiver != data.payer ) {
+                accounts.insert(data.receiver);
+              }
+            }
+            break;
+          case N(sellram):
+            {
+              const auto data = fc::raw::unpack<zmqplugin::syscontract::sellram>(at.act.data);
+              accounts.insert(data.account);
+            }
+            break;
+          case N(delegatebw):
+            {
+              const auto data = fc::raw::unpack<zmqplugin::syscontract::delegatebw>(at.act.data);
+              accounts.insert(data.from);
+              if( data.receiver != data.from ) {
+                accounts.insert(data.receiver);
+              }
+            }
+            break;
+          case N(undelegatebw):
+            {
+              const auto data = fc::raw::unpack<zmqplugin::syscontract::undelegatebw>(at.act.data);
+              accounts.insert(data.from);
+              if( data.receiver != data.from ) {
+                accounts.insert(data.receiver);
+              }
+            }
+            break;
+          case N(refund):
+            {
+              const auto data = fc::raw::unpack<zmqplugin::syscontract::refund>(at.act.data);
+              accounts.insert(data.owner);
+            }
+            break;
+          case N(regproducer):
+            {
+              const auto data = fc::raw::unpack<zmqplugin::syscontract::regproducer>(at.act.data);
+              accounts.insert(data.producer);
+            }
+            break;
+          case N(bidname):
+            {
+              // do nothing because newname account does not exist yet
+            }
+            break;
+          case N(unregprod):
+            {
+              const auto data = fc::raw::unpack<zmqplugin::syscontract::unregprod>(at.act.data);
+              accounts.insert(data.producer);
+            }
+            break;
+          case N(regproxy):
+            {
+              const auto data = fc::raw::unpack<zmqplugin::syscontract::regproxy>(at.act.data);
               accounts.insert(data.proxy);
             }
-            // not including producers list, although some projects may need it
+            break;
+          case N(voteproducer):
+            {
+              const auto data = fc::raw::unpack<zmqplugin::syscontract::voteproducer>(at.act.data);
+              accounts.insert(data.voter);
+              if( data.proxy ) {
+                accounts.insert(data.proxy);
+              }
+              // not including producers list, although some projects may need it
+            }
+            break;
+          case N(claimrewards):
+            {
+              const auto data = fc::raw::unpack<zmqplugin::syscontract::claimrewards>(at.act.data);
+              accounts.insert(data.owner);
+            }
+            break;
           }
-          break;
-        case N(claimrewards):
-          {
-            const auto data = fc::raw::unpack<zmqplugin::syscontract::claimrewards>(at.act.data);
-            accounts.insert(data.owner);
-          }
-          break;
         }
-      }
 
-      switch((uint64_t) at.act.name) {
-      case N(transfer):
-        {
-          const auto data = fc::raw::unpack<zmqplugin::token::transfer>(at.act.data);
-          symbol s = data.quantity.get_symbol();
-          if( s.valid() ) {
-            add_asset_move(asset_moves, at.act.account, s, data.from);
-            add_asset_move(asset_moves, at.act.account, s, data.to);
+        switch((uint64_t) at.act.name) {
+        case N(transfer):
+          {
+            const auto data = fc::raw::unpack<zmqplugin::token::transfer>(at.act.data);
+            symbol s = data.quantity.get_symbol();
+            if( s.valid() ) {
+              add_asset_move(asset_moves, at.act.account, s, data.from);
+              add_asset_move(asset_moves, at.act.account, s, data.to);
+            }
           }
-        }
-        break;
-      case N(issue):
-        {
-          const auto data = fc::raw::unpack<zmqplugin::token::issue>(at.act.data);
-          symbol s = data.quantity.get_symbol();
-          if( s.valid() ) {
-            add_asset_move(asset_moves, at.act.account, s, data.to);
+          break;
+        case N(issue):
+          {
+            const auto data = fc::raw::unpack<zmqplugin::token::issue>(at.act.data);
+            symbol s = data.quantity.get_symbol();
+            if( s.valid() ) {
+              add_asset_move(asset_moves, at.act.account, s, data.to);
+            }
           }
-        }
-        break;
-      case N(open):
-        {
-          const auto data = fc::raw::unpack<zmqplugin::token::open>(at.act.data);
-          if( data.symbol.valid() ) {
-            add_asset_move(asset_moves, at.act.account, data.symbol, data.owner);
+          break;
+        case N(open):
+          {
+            const auto data = fc::raw::unpack<zmqplugin::token::open>(at.act.data);
+            if( data.symbol.valid() ) {
+              add_asset_move(asset_moves, at.act.account, data.symbol, data.owner);
+            }
           }
+          break;
         }
-        break;
+      } catch(fc::exception& e) {
+        wlog("account: ${account}, action: ${action}, details: ${details}",("account",at.act.account)("action",at.act.name)("details",e.to_detail_string()));
+      } catch(...){
+        wlog("account: ${account}, action: ${action}",("account",at.act.account)("action",at.act.name));
       }
+      
 
       for( const auto& iline : at.inline_traces ) {
         find_accounts_and_tokens( iline, accounts, asset_moves );
