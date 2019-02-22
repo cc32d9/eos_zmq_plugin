@@ -162,10 +162,10 @@ git clone https://github.com/EOSIO/eos --recursive
 cd eos
 
 # compile EOS suite
-LOCAL_CMAKE_FLAGS="-DEOSIO_ADDITIONAL_PLUGINS=${HOME}/build/eos_zmq_plugin" ./eosio_build.sh
+LOCAL_CMAKE_FLAGS="-DEOSIO_ADDITIONAL_PLUGINS=${HOME}/build/eos_zmq_plugin" ./scripts/eosio_build.sh
 
 # insttall
-sudo ./eosio_install.sh
+sudo ./scripts/eosio_install.sh
 ```
 
 
