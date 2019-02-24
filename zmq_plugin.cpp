@@ -207,7 +207,7 @@ namespace eosio {
         chain::config::system_account_name,
         N(eosio.msig),  N(eosio.token),  N(eosio.ram), N(eosio.ramfee),
         N(eosio.stake), N(eosio.vpay), N(eosio.bpay), N(eosio.saving),
-        N(eosio.names), N(eosio.forum), N(eosio)
+        N(eosio.names), N(eosio.forum), N(eosio), N(eosio.unregd)
       };
 
       for(name n : sys_acc_names) {
