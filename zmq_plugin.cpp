@@ -220,6 +220,9 @@ namespace eosio {
       blacklist_actions.emplace
         (std::make_pair(N(blocktwitter),
                         std::set<name>{ N(tweet) } ));
+      blacklist_actions.emplace
+        (std::make_pair(N(gu2tembqgage),
+                        std::set<name>{ N(ddos) } ));
     }
 
 
