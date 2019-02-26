@@ -154,7 +154,7 @@ This plugin depends on:
 
 
 ```bash
-apt-get install -y pkg-config libzmq5-dev
+apt-get install -y pkg-config libzmq5-dev libnorm-dev
 mkdir ${HOME}/build
 cd ${HOME}/build/
 git clone https://github.com/cc32d9/eos_zmq_plugin.git
