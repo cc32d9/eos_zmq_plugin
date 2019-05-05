@@ -586,36 +586,45 @@ namespace eosio {
       }
 
       try {
-        switch((uint64_t) at.act.name) {
-        case N(transfer):
-          {
-            const auto data = fc::raw::unpack<zmqplugin::token::transfer>(at.act.data);
-            symbol s = data.quantity.get_symbol();
-            if( s.valid() ) {
-              add_asset_move(asset_moves, at.act.account, s, data.from);
-              add_asset_move(asset_moves, at.act.account, s, data.to);
+        try {
+          switch((uint64_t) at.act.name) {
+          case N(transfer):
+            {
+              const auto data = fc::raw::unpack<zmqplugin::token::transfer>(at.act.data);
+              symbol s = data.quantity.get_symbol();
+              if( s.valid() ) {
+                add_asset_move(asset_moves, at.act.account, s, data.from);
+                add_asset_move(asset_moves, at.act.account, s, data.to);
+              }
             }
-          }
-          break;
-        case N(issue):
-          {
-            const auto data = fc::raw::unpack<zmqplugin::token::issue>(at.act.data);
-            symbol s = data.quantity.get_symbol();
-            if( s.valid() ) {
-              add_asset_move(asset_moves, at.act.account, s, data.to);
+            break;
+          case N(issue):
+            {
+              const auto data = fc::raw::unpack<zmqplugin::token::issue>(at.act.data);
+              symbol s = data.quantity.get_symbol();
+              if( s.valid() ) {
+                add_asset_move(asset_moves, at.act.account, s, data.to);
+              }
             }
-          }
-          break;
-        case N(open):
-          {
-            const auto data = fc::raw::unpack<zmqplugin::token::open>(at.act.data);
-            if( data.symbol.valid() ) {
-              add_asset_move(asset_moves, at.act.account, data.symbol, data.owner);
+            break;
+          case N(open):
+            {
+              const auto data = fc::raw::unpack<zmqplugin::token::open>(at.act.data);
+              if( data.symbol.valid() ) {
+                add_asset_move(asset_moves, at.act.account, data.symbol, data.owner);
+              }
             }
+            break;
           }
-          break;
         }
+        catch ( ... ) {
+          wlog("Failed to decode action ${c}:${a} in ${t}",
+               ("c",at.act.account)("a",at.act.name)("t",at.trx_id));
+          throw;
+        }
+
       }
+      
       FC_LOG_AND_DROP();
 
       for( const auto& iline : at.inline_traces ) {
